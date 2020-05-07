@@ -4,19 +4,19 @@ EXEC=anka
 
 all: build run
 
-build-osx:
-	@echo "building on osx / linux ... "
-	./scripts/build_osx.sh $(EXEC)
+build-unix:
+	@echo "building on unix ... "
+	./build.sh $(EXEC)
 
 build-win:
 	@echo "building on windows ..."
-	./build.bat
+	call build.bat
 
 build:
 ifeq ($(OS),Windows_NT)
 	make build-win
 else
-	make build-osx
+	make build-unix
 endif
 
 

@@ -15,5 +15,3 @@ pushd build
 call odin build ..\src -out=anka.exe -show-timings
 
 popd
-
-.\build\anka.exe
