@@ -45,13 +45,13 @@ main :: proc() {
 
   init_render(&render_system);
 
-  tex := load_image(&render_system, "./assets/gfx/template-32x32.png");
+  tex, ok := load_image(&render_system, "./assets/gfx/template-32x32.png");
 
   running := true;
   for running {
     if !handle_input() do break;
 
-    render_add_draw(&render_system, -0.5, -0.5, 1.0, 1.0, tex);
+    render_add_draw_call(&render_system, -0.5, -0.5, 1.0, 1.0, tex);
 
     render(&window, &render_system);
   }

@@ -5,11 +5,11 @@ EXEC=anka
 all: build run
 
 build-unix:
-	@echo "building on unix ... "
+	@echo [Building on Unix]
 	./build.sh $(EXEC)
 
 build-win:
-	@echo "building on windows ..."
+	@echo [Building on Windows]
 	call build.bat
 
 build:
