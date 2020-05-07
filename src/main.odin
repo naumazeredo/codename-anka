@@ -1,6 +1,7 @@
 package anka
 
 import "core:fmt"
+import "core:math/linalg"
 
 import sdl "external/sdl2"
 import gl  "external/gl"
@@ -51,8 +52,9 @@ main :: proc() {
   for running {
     if !handle_input() do break;
 
-    render_add_draw_call(&render_system, -0.5, -0.5, 1.0, 1.0, tex);
+    render_add_draw_call(&render_system, 50, 50, 64, 64, tex, 1);
+    render_add_draw_call(&render_system, 32, 32, 32, 32, tex, 0);
 
-    render(&window, &render_system);
+    render(&render_system, &window);
   }
 }

@@ -6,11 +6,15 @@ layout(location = 1) in vec4 color;
 layout(location = 2) in vec2 uv;
 
 // output data; will be interpolated for each fragment
-out vec2 frag_uv;
 out vec4 frag_color;
+out vec2 frag_uv;
+
+uniform mat4 model_mat;
+uniform mat4 view_mat;
+uniform mat4 proj_mat;
 
 void main() {
   frag_uv = uv;
   frag_color = color;
-  gl_Position = vec4(position, 1);
+  gl_Position = proj_mat * view_mat * model_mat * vec4(position, 1);
 }

@@ -5,6 +5,7 @@ package anka
 
 import "core:fmt"
 import "core:os"
+import "core:math/linalg"
 
 import sdl "external/sdl2"
 import gl  "external/gl"
@@ -54,14 +55,17 @@ Render_System :: struct {
   uv_buffer      : [dynamic]f32,
   element_buffer : [dynamic]u32,
 
-  draw_call_texture : [dynamic]u32,
-  draw_call_start : [dynamic]u32,
-  draw_call_count : [dynamic]u32,
-
+  draw_call_texture   : [dynamic]u32,
+  draw_call_start     : [dynamic]u32,
+  draw_call_count     : [dynamic]u32,
+  draw_call_translate : [dynamic]Vec2f,
 
 
   // @Refactor(naum): get uniforms from shaders during draw calls
-  texture_uniform : Uniform,
+  texture_uniform   : Uniform,
+  model_mat_uniform : Uniform,
+  view_mat_uniform  : Uniform,
+  proj_mat_uniform  : Uniform,
 }
 
 /*
@@ -132,6 +136,9 @@ init_render :: proc(using render_system: ^Render_System) {
   gl.GenBuffers(1, &element_buffer_object);
 
   texture_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("tex"));
+  model_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("model_mat"));
+  view_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("view_mat"));
+  proj_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("proj_mat"));
 }
 
 cleanup_render :: proc(using render_system: ^Render_System) {
@@ -184,12 +191,11 @@ load_image :: proc(using render_system: ^Render_System, filename: string) -> (Te
 // @Incompelte(naum): add color
 // @Refactor(naum): xywh uniform coordinates (not screen coordinates)
 // @Speed(naum): gather by layer (depth test instead?), shader, texture (in this order)
-render_add_draw_call :: proc(using render_system: ^Render_System, x, y, w, h : f32, tex: Texture_Id, flip: Texture_Flip_Set = {}) {
-  assert(tex >= 0);
+render_add_draw_call :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
   draw_call := Draw_Call {
     shader = shader,
     texture = tex,
-    layer = 0,
+    layer = layer,
     flip = flip,
     type = Draw_Quad {
       x, y, w, h
@@ -199,8 +205,8 @@ render_add_draw_call :: proc(using render_system: ^Render_System, x, y, w, h : f
   append(&world_draw_calls, draw_call);
 }
 
-// @Incomplete(naum): considering same shader for all
-_render_flush_draw_calls :: proc(using render_system: ^Render_System) {
+// @Incomplete(naum): considering same shader and texture for all
+_render_flush_draw_calls :: proc(using render_system: ^Render_System, window: ^Window) {
   clear(&vertex_buffer);
   clear(&uv_buffer);
   clear(&color_buffer);
@@ -209,36 +215,43 @@ _render_flush_draw_calls :: proc(using render_system: ^Render_System) {
   clear(&draw_call_start);
   clear(&draw_call_count);
   clear(&draw_call_texture);
+  clear(&draw_call_translate);
 
-  x0, x1, y0, y1 : f32;
+  x, y : f32;
+  w, h : f32;
 
   for draw_call in world_draw_calls {
     switch type in draw_call.type {
       case Draw_Quad:
-        x0 = type.x;
-        x1 = type.x + type.w;
-        y0 = type.y;
-        y1 = type.y + type.h;
+        x = type.x; y = type.y;
+        w = type.w; h = type.h;
 
       case Draw_Quad_Scale:
         unimplemented();
     }
 
 
-    // 2D quad draw
     // @Refactor(naum): only works for 2D quads
-
-    elem := u32(len(vertex_buffer));
+    // 2D quad draw
 
     // elements
+    elem := u32(len(vertex_buffer) / 3); // @Cleanup(naum): hacky way
     append(&element_buffer, elem + 0); append(&element_buffer, elem + 1); append(&element_buffer, elem + 2);
     append(&element_buffer, elem + 2); append(&element_buffer, elem + 3); append(&element_buffer, elem + 0);
 
     // vertex
-    append(&vertex_buffer, x0); append(&vertex_buffer, y0); append(&vertex_buffer, 0);
-    append(&vertex_buffer, x1); append(&vertex_buffer, y0); append(&vertex_buffer, 0);
-    append(&vertex_buffer, x1); append(&vertex_buffer, y1); append(&vertex_buffer, 0);
-    append(&vertex_buffer, x0); append(&vertex_buffer, y1); append(&vertex_buffer, 0);
+    // @Refactor(naum): model rotation/translation via model_mat (?)
+    /*
+    append(&vertex_buffer, 0); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, w); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, w); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, 0); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_call.layer));
+    */
+
+    append(&vertex_buffer, x+0); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, x+w); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, x+w); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, x+0); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_call.layer));
 
     // color
     append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1);
@@ -251,10 +264,11 @@ _render_flush_draw_calls :: proc(using render_system: ^Render_System) {
     fh := f32(.Horizontal in draw_call.flip ? 1.0 : 0.0);
     fv := f32(.Vertical   in draw_call.flip ? 1.0 : 0.0);
 
-    append(&uv_buffer, fh);   append(&uv_buffer, 1-fv);
-    append(&uv_buffer, 1-fh); append(&uv_buffer, 1-fv);
-    append(&uv_buffer, 1-fh); append(&uv_buffer, fv);
+    // @Fix(naum): is it correct? (check when loading 3d models)
     append(&uv_buffer, fh);   append(&uv_buffer, fv);
+    append(&uv_buffer, 1-fh); append(&uv_buffer, fv);
+    append(&uv_buffer, 1-fh); append(&uv_buffer, 1-fv);
+    append(&uv_buffer, fh);   append(&uv_buffer, 1-fv);
 
     //
     if len(draw_call_start) == 0 {
@@ -266,21 +280,26 @@ _render_flush_draw_calls :: proc(using render_system: ^Render_System) {
 
     append(&draw_call_count, 6);
     append(&draw_call_texture, draw_call.texture);
+    append(&draw_call_translate, Vec2f { x, y });
   }
 
   clear(&world_draw_calls);
 }
 
+// @Incomplete(naum): shader/texture split
 // @Incomplete(naum): use camera info
-render :: proc(window: ^Window, using render_system: ^Render_System) {
+render :: proc(using render_system: ^Render_System, window: ^Window) {
   gl.ClearColor(1.0, 0.0, 1.0, 1.0);
-  gl.Clear(gl.COLOR_BUFFER_BIT);
+  gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  gl.Enable(gl.DEPTH_TEST);
+  gl.DepthFunc(gl.LEQUAL);
 
   defer sdl.gl_swap_window(window.sdl_window);
 
   if len(world_draw_calls) == 0 do return;
 
-  _render_flush_draw_calls(render_system);
+  _render_flush_draw_calls(render_system, window);
 
   // @Refactor(naum): maybe split opaque and translucent draws
   gl.Enable(gl.BLEND);
@@ -338,14 +357,46 @@ render :: proc(window: ^Window, using render_system: ^Render_System) {
   gl.ActiveTexture(gl.TEXTURE0);
   gl.Uniform1i(texture_uniform, 0);
 
+
+  // MVP matrixes
+  view_mat := linalg.MATRIX4_IDENTITY;
+
+  proj_mat := linalg.matrix_ortho3d(
+    0.0, f32(window.width),
+    f32(window.height), 0.0,
+    -1000.0, 1000.0
+  );
+
+  gl.UniformMatrix4fv(view_mat_uniform, 1, 0, &view_mat[0][0]);
+  gl.UniformMatrix4fv(proj_mat_uniform, 1, 0, &proj_mat[0][0]);
+
+  // @Refactor(naum): model rotation/translation via model_mat
+  model_mat := linalg.MATRIX4_IDENTITY;
+  gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
+
+  // @Fix(naum): all same texture
+  gl.BindTexture(gl.TEXTURE_2D, textures[draw_call_texture[0]]);
+  gl.DrawElements(gl.TRIANGLES, i32(len(element_buffer)), gl.UNSIGNED_INT, rawptr(uintptr(0)));
+
+  /*
   for _, id in draw_call_start {
     start := draw_call_start[id];
     count := draw_call_count[id];
     tex   := textures[draw_call_texture[id]];
+    trans := draw_call_translate[id];
+
+    // @Refactor(naum): for 2D do we need model_mat? We can put translation directly in vbo and just draw all elements
+    //model_mat := linalg.matrix4_translate({ trans.x, trans.y, 0 });
+    model_mat := linalg.MATRIX4_IDENTITY;
+    gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
 
     gl.BindTexture(gl.TEXTURE_2D, tex);
 
+    //gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
     gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
     // @Future(naum): glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT, 0, start ? 4 : 0);
   }
+  */
+
+
 }
