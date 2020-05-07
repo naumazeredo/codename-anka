@@ -1,5 +1,7 @@
 package anka
 
+import "core:fmt"
+
 import sdl "external/sdl2"
 import gl  "external/gl"
 
@@ -43,11 +45,13 @@ main :: proc() {
 
   init_render(&render_system);
 
+  tex := load_image(&render_system, "./assets/gfx/template-32x32.png");
+
   running := true;
   for running {
     if !handle_input() do break;
 
-    render_add_draw(-0.5, -0.5, 1.0, 1.0, &render_system);
+    render_add_draw(&render_system, -0.5, -0.5, 1.0, 1.0, tex);
 
     render(&window, &render_system);
   }

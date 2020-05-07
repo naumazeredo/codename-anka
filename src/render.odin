@@ -1,21 +1,22 @@
 package anka
 
 import "core:fmt"
+import "core:os"
 
 import sdl "external/sdl2"
 import gl  "external/gl"
+import stb "external/stb"
 
 import "util"
 
 // @Refactor(naum): move this to game system when we have one
 render_system : Render_System;
 
+// @Refactor(naum): create types: VAO, buffer_object (VBO/EBO), shader_program
 Render_System :: struct {
-  /*
-  textures  : [dynamic]u32,
-  texture_w : [dynamic]u32,
-  texture_h : [dynamic]u32,
-  */
+  textures   : [dynamic]u32,
+  textures_w : [dynamic]u32,
+  textures_h : [dynamic]u32,
 
   // @Refactor(naum): allow multiple programs
   program_id : u32,
@@ -36,15 +37,17 @@ Render_System :: struct {
   uv_buffer      : [dynamic]f32,
   element_buffer : [dynamic]u32,
 
+  draw_call_texture : [dynamic]i32,
   draw_call_start : [dynamic]u32,
   draw_call_count : [dynamic]u32,
 
-  texture_id : i32,
+  texture_uniform : i32,
 }
 
+
 init_render :: proc(using render_system: ^Render_System) {
-  //id, ok := gl.load_shaders("assets/default.vs", "assets/default.fs");
-  id, ok := gl.load_shaders("assets/shaders/solid.vs", "assets/shaders/solid.fs");
+  id, ok := gl.load_shaders("assets/shaders/default.vs", "assets/shaders/default.fs");
+  //id, ok := gl.load_shaders("assets/shaders/solid.vs", "assets/shaders/solid.fs");
   if !ok {
     // @Refactor(naum): error logging
     fmt.println("Could not load shaders");
@@ -59,8 +62,9 @@ init_render :: proc(using render_system: ^Render_System) {
   gl.GenBuffers(1, &color_buffer_object);
   gl.GenBuffers(1, &element_buffer_object);
 
+  //cstr := util.create_cstring("tex");
   cstr := [4]u8 { 't', 'e', 'x', '\x00' };
-  texture_id = gl.GetUniformLocation(program_id, &cstr[0]);
+  texture_uniform = gl.GetUniformLocation(program_id, &cstr[0]);
 }
 
 cleanup_render :: proc(using render_system: ^Render_System) {
@@ -72,6 +76,42 @@ cleanup_render :: proc(using render_system: ^Render_System) {
   gl.DeleteBuffers(1, &element_buffer_object);
 }
 
+// @Refactor(naum): normalize filenames to be "assets/..." or "assets/gfx/..."
+// @Incomplete(naum): struct to store texture info (pixel_format, color_format, width, height, data)
+load_image :: proc(using render_system: ^Render_System, filename: string) -> i32 {
+  // tprint
+  png_data, ok := os.read_entire_file(filename);
+  if !ok {
+    // @Refactor(naum): error logging
+    fmt.println("Could not read image file: ", filename);
+    return -1;
+  }
+
+  width, height, channels : i32;
+  pixel_data := stb.load_from_memory(&png_data[0], cast(i32)len(png_data), &width, &height, &channels, 0);
+  defer stb.image_free(pixel_data);
+
+  if pixel_data == nil {
+    // @Refactor(naum): error logging
+    fmt.println("Could not load image: ", filename);
+    return -1;
+  }
+
+  tex : u32;
+  gl.GenTextures(1, &tex);
+  gl.BindTexture(gl.TEXTURE_2D, tex);
+  gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixel_data);
+
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+
+  append(&textures, tex);
+  append(&textures_w, u32(width));
+  append(&textures_h, u32(height));
+
+  return i32(len(textures)-1);
+}
+
 render_new_frame :: proc(using render_system: ^Render_System) {
   clear(&vertex_buffer);
   clear(&uv_buffer);
@@ -80,17 +120,20 @@ render_new_frame :: proc(using render_system: ^Render_System) {
 
   clear(&draw_call_start);
   clear(&draw_call_count);
+  clear(&draw_call_texture);
 }
 
 // @Incomplete(naum): draw commands (2d/3d)
 // @Incomplete(naum): render layer
 // @Incompelte(naum): add texture and color
 // @Refactor(naum): xywh uniform coordinates (not screen coordinates)
-// @Speed(naum): optimize element buffers for 2d (only quads)
-render_add_draw :: proc(x, y, w, h : f32, using render_system: ^Render_System) {
+// @Refactor(naum): flip can be an enum/bitset
+render_add_draw :: proc(using render_system: ^Render_System, x, y, w, h : f32, tex: i32, flip_v: bool = false, flip_h: bool = false) {
+  assert(tex >= 0);
+
   start_vertex := u32(len(vertex_buffer));
 
-  //
+  // vertex
   append(&vertex_buffer, x);
   append(&vertex_buffer, y);
   append(&vertex_buffer, 0);
@@ -108,7 +151,7 @@ render_add_draw :: proc(x, y, w, h : f32, using render_system: ^Render_System) {
   append(&vertex_buffer, 0);
 
 
-  //
+  // color
   append(&color_buffer, 1);
   append(&color_buffer, 1);
   append(&color_buffer, 1);
@@ -129,7 +172,24 @@ render_add_draw :: proc(x, y, w, h : f32, using render_system: ^Render_System) {
   append(&color_buffer, 1);
   append(&color_buffer, 1);
 
-  //
+  // uv
+  // @Cleanup(naum)
+  fh := f32(flip_h ? 1.0 : 0.0);
+  fv := f32(flip_h ? 1.0 : 0.0);
+
+  append(&uv_buffer, fh);
+  append(&uv_buffer, 1-fv);
+
+  append(&uv_buffer, 1-fh);
+  append(&uv_buffer, 1-fv);
+
+  append(&uv_buffer, 1-fh);
+  append(&uv_buffer, fv);
+
+  append(&uv_buffer, fh);
+  append(&uv_buffer, fv);
+
+  // elements
   append(&element_buffer, start_vertex+0);
   append(&element_buffer, start_vertex+1);
   append(&element_buffer, start_vertex+2);
@@ -147,6 +207,7 @@ render_add_draw :: proc(x, y, w, h : f32, using render_system: ^Render_System) {
   }
 
   append(&draw_call_count, 6);
+  append(&draw_call_texture, tex);
 }
 
 // @Incomplete(naum): use camera info
@@ -177,19 +238,18 @@ render :: proc(window: ^Window, using render_system: ^Render_System) {
                 &color_buffer[0],
                 gl.STREAM_DRAW);
 
-  /*
   gl.BindBuffer(gl.ARRAY_BUFFER, uv_buffer_object);
   gl.BufferData(gl.ARRAY_BUFFER,
                 size_of(f32) * len(uv_buffer),
                 &uv_buffer[0],
                 gl.STREAM_DRAW);
-  */
 
   gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, element_buffer_object);
   gl.BufferData(gl.ELEMENT_ARRAY_BUFFER,
-                size_of(f32) * len(element_buffer),
+                size_of(u32) * len(element_buffer),
                 &element_buffer[0],
                 gl.STREAM_DRAW);
+
 
   gl.BindVertexArray(vao);
 
@@ -203,47 +263,30 @@ render :: proc(window: ^Window, using render_system: ^Render_System) {
   // colors
   gl.EnableVertexAttribArray(1);
   gl.BindBuffer(gl.ARRAY_BUFFER, color_buffer_object);
-  gl.VertexAttribPointer(2, 4, gl.FLOAT, gl.FALSE, 0, rawptr(uintptr(0)));
+  gl.VertexAttribPointer(1, 4, gl.FLOAT, gl.FALSE, 0, rawptr(uintptr(0)));
 
   // uv
-  /*
   gl.EnableVertexAttribArray(2);
   gl.BindBuffer(gl.ARRAY_BUFFER, uv_buffer_object);
-  gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, rawptr(uintptr(0)));
-  */
+  gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, 0, rawptr(uintptr(0)));
 
   // element buffer
   gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, element_buffer_object);
 
   // texture
   gl.ActiveTexture(gl.TEXTURE0);
-  gl.Uniform1i(texture_id, 0);
+  gl.Uniform1i(texture_uniform, 0);
 
   for _, id in draw_call_start {
     start := draw_call_start[id];
     count := draw_call_count[id];
-    //fmt.println(id, start, count);
+    tex   := textures[draw_call_texture[id]];
 
-    //gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
-    //gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, rawptr(uintptr(0)));
-  }
+    gl.BindTexture(gl.TEXTURE_2D, tex);
 
-  /*
-  for (u32 i = 0; i < render_info.draw_texture.size(); i++) {
-    auto index = new_order[i];
-
-    auto tex = render_info.texture[render_info.draw_texture[index]];
-    auto start = render_info.draw_start_element[index];
-    auto count = render_info.draw_count_element[index];
-
-    // texture
-    glBindTexture(GL_TEXTURE_2D, tex);
-
-    // draw call
-    glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, (void*)(intptr_t)(start * sizeof(GLuint)));
+    gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
     //glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT, 0, start ? 4 : 0);
   }
-  */
 
   render_new_frame(render_system);
 }
