@@ -52,8 +52,8 @@ main :: proc() {
   for running {
     if !handle_input() do break;
 
-    render_add_draw_call(&render_system, 50, 50, 64, 64, tex, 1);
-    render_add_draw_call(&render_system, 32, 32, 32, 32, tex, 0);
+    render_add_draw_cmd(&render_system, 50, 50, 64, 64, tex, 1);
+    render_add_draw_cmd(&render_system, 32, 32, 32, 32, tex, 0);
 
     render(&render_system, &window);
   }

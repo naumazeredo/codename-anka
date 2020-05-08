@@ -18,7 +18,7 @@ render_system : Render_System;
 
 // @Refactor(naum): move this to a gl specific file
 // @Refactor(naum): make all strongly typed
-VAO           :: u32;
+Vertex_Array  :: u32;
 Shader        :: u32;
 Texture       :: u32;
 Buffer_Object :: u32;
@@ -37,7 +37,7 @@ Render_System :: struct {
   shader: Shader,
 
   // @Refactor(naum): allow multiple objects
-  vao : u32,
+  vertex_array_object : Vertex_Array,
 
   // @Refactor(naum): buffer_objects : [dynamic]u32 (?)
   vertex_buffer_object  : Buffer_Object,
@@ -45,8 +45,13 @@ Render_System :: struct {
   uv_buffer_object      : Buffer_Object,
   element_buffer_object : Buffer_Object,
 
-  world_draw_calls : [dynamic]Draw_Call,
-  //ui_draw_calls    : [dynamic]Draw_Call,
+  world_draw_cmds : [dynamic]Draw_Command,
+  //ui_draw_cmds    : [dynamic]Draw_Command,
+
+  texture_uniform   : Uniform,
+  model_mat_uniform : Uniform,
+  view_mat_uniform  : Uniform,
+  proj_mat_uniform  : Uniform,
 
   // @Refactor(naum): draw_commands : [dynamic]Draw_Command
   // frame buffers
@@ -55,17 +60,13 @@ Render_System :: struct {
   uv_buffer      : [dynamic]f32,
   element_buffer : [dynamic]u32,
 
-  draw_call_texture   : [dynamic]u32,
-  draw_call_start     : [dynamic]u32,
-  draw_call_count     : [dynamic]u32,
-  draw_call_translate : [dynamic]Vec2f,
+  draw_cmd_texture   : [dynamic]u32,
+  draw_cmd_start     : [dynamic]u32,
+  draw_cmd_count     : [dynamic]u32,
+  draw_cmd_translate : [dynamic]Vec2f,
 
-
-  // @Refactor(naum): get uniforms from shaders during draw calls
-  texture_uniform   : Uniform,
-  model_mat_uniform : Uniform,
-  view_mat_uniform  : Uniform,
-  proj_mat_uniform  : Uniform,
+  current_shader     : Shader,
+  current_texture_id : Texture_Id,
 }
 
 /*
@@ -101,8 +102,8 @@ Draw_Type :: union {
   // @Refactor(naum): 2D vs 3D
 }
 
-// @Naming(naum): draw_call vs draw_command
-Draw_Call :: struct {
+// @Naming(naum): draw_cmd vs draw_command
+Draw_Command :: struct {
   shader  : Shader,
   texture : Texture_Id, // @Future(naum): subtexture (with UV info)
   layer   : i32, // (2D only) less is back, high is front
@@ -128,21 +129,16 @@ init_render :: proc(using render_system: ^Render_System) {
 
   shader = id;
 
-  gl.GenVertexArrays(1, &vao);
+  gl.GenVertexArrays(1, &vertex_array_object);
 
   gl.GenBuffers(1, &vertex_buffer_object);
   gl.GenBuffers(1, &uv_buffer_object);
   gl.GenBuffers(1, &color_buffer_object);
   gl.GenBuffers(1, &element_buffer_object);
-
-  texture_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("tex"));
-  model_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("model_mat"));
-  view_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("view_mat"));
-  proj_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("proj_mat"));
 }
 
 cleanup_render :: proc(using render_system: ^Render_System) {
-  gl.DeleteVertexArrays(1, &vao);
+  gl.DeleteVertexArrays(1, &vertex_array_object);
 
   gl.DeleteBuffers(1, &vertex_buffer_object);
   gl.DeleteBuffers(1, &uv_buffer_object);
@@ -191,8 +187,8 @@ load_image :: proc(using render_system: ^Render_System, filename: string) -> (Te
 // @Incompelte(naum): add color
 // @Refactor(naum): xywh uniform coordinates (not screen coordinates)
 // @Speed(naum): gather by layer (depth test instead?), shader, texture (in this order)
-render_add_draw_call :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
-  draw_call := Draw_Call {
+render_add_draw_cmd :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
+  draw_cmd := Draw_Command {
     shader = shader,
     texture = tex,
     layer = layer,
@@ -202,26 +198,20 @@ render_add_draw_call :: proc(using render_system: ^Render_System, x, y, w, h: f3
     }
   };
 
-  append(&world_draw_calls, draw_call);
+  append(&world_draw_cmds, draw_cmd);
 }
 
 // @Incomplete(naum): considering same shader and texture for all
-_render_flush_draw_calls :: proc(using render_system: ^Render_System, window: ^Window) {
-  clear(&vertex_buffer);
-  clear(&uv_buffer);
-  clear(&color_buffer);
-  clear(&element_buffer);
-
-  clear(&draw_call_start);
-  clear(&draw_call_count);
-  clear(&draw_call_texture);
-  clear(&draw_call_translate);
-
+_render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Window) {
   x, y : f32;
   w, h : f32;
 
-  for draw_call in world_draw_calls {
-    switch type in draw_call.type {
+  for draw_cmd, id in world_draw_cmds {
+    // @Refactor(naum): gather multiple cmds per draw call
+    _change_shader (render_system, draw_cmd.shader);
+    _change_texture(render_system, draw_cmd.texture);
+
+    switch type in draw_cmd.type {
       case Draw_Quad:
         x = type.x; y = type.y;
         w = type.w; h = type.h;
@@ -242,16 +232,16 @@ _render_flush_draw_calls :: proc(using render_system: ^Render_System, window: ^W
     // vertex
     // @Refactor(naum): model rotation/translation via model_mat (?)
     /*
-    append(&vertex_buffer, 0); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_call.layer));
-    append(&vertex_buffer, w); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_call.layer));
-    append(&vertex_buffer, w); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_call.layer));
-    append(&vertex_buffer, 0); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, 0); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_cmd.layer));
+    append(&vertex_buffer, w); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_cmd.layer));
+    append(&vertex_buffer, w); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_cmd.layer));
+    append(&vertex_buffer, 0); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_cmd.layer));
     */
 
-    append(&vertex_buffer, x+0); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_call.layer));
-    append(&vertex_buffer, x+w); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_call.layer));
-    append(&vertex_buffer, x+w); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_call.layer));
-    append(&vertex_buffer, x+0); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_call.layer));
+    append(&vertex_buffer, x+0); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_cmd.layer));
+    append(&vertex_buffer, x+w); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_cmd.layer));
+    append(&vertex_buffer, x+w); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_cmd.layer));
+    append(&vertex_buffer, x+0); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_cmd.layer));
 
     // color
     append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1);
@@ -261,8 +251,8 @@ _render_flush_draw_calls :: proc(using render_system: ^Render_System, window: ^W
 
     // uv
     // @Cleanup(naum)
-    fh := f32(.Horizontal in draw_call.flip ? 1.0 : 0.0);
-    fv := f32(.Vertical   in draw_call.flip ? 1.0 : 0.0);
+    fh := f32(.Horizontal in draw_cmd.flip ? 1.0 : 0.0);
+    fv := f32(.Vertical   in draw_cmd.flip ? 1.0 : 0.0);
 
     // @Fix(naum): is it correct? (check when loading 3d models)
     append(&uv_buffer, fh);   append(&uv_buffer, fv);
@@ -271,41 +261,95 @@ _render_flush_draw_calls :: proc(using render_system: ^Render_System, window: ^W
     append(&uv_buffer, fh);   append(&uv_buffer, 1-fv);
 
     //
-    if len(draw_call_start) == 0 {
-      append(&draw_call_start, 0);
+    if len(draw_cmd_start) == 0 {
+      append(&draw_cmd_start, 0);
     } else {
-      last := len(draw_call_start) - 1;
-      append(&draw_call_start, draw_call_start[last] + draw_call_count[last]);
+      last := len(draw_cmd_start) - 1;
+      append(&draw_cmd_start, draw_cmd_start[last] + draw_cmd_count[last]);
     }
 
-    append(&draw_call_count, 6);
-    append(&draw_call_texture, draw_call.texture);
-    append(&draw_call_translate, Vec2f { x, y });
+    append(&draw_cmd_count, 6);
+    append(&draw_cmd_texture, draw_cmd.texture);
+    append(&draw_cmd_translate, Vec2f { x, y });
+
+    // @Refactor(naum): gather multiple cmds per draw call
+    _render_queued_cmds(render_system);
   }
 
-  clear(&world_draw_calls);
+  clear(&world_draw_cmds);
 }
 
-// @Incomplete(naum): shader/texture split
-// @Incomplete(naum): use camera info
-render :: proc(using render_system: ^Render_System, window: ^Window) {
-  gl.ClearColor(1.0, 0.0, 1.0, 1.0);
-  gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+_render_queued_cmds :: proc(using render_system: ^Render_System) {
+  _create_buffer_data(render_system);
+  gl.DrawElements(gl.TRIANGLES, i32(len(element_buffer)), gl.UNSIGNED_INT, rawptr(uintptr(0)));
 
-  gl.Enable(gl.DEPTH_TEST);
-  gl.DepthFunc(gl.LEQUAL);
+  /*
+  for _, id in draw_cmd_start {
+    start := draw_cmd_start[id];
+    count := draw_cmd_count[id];
+    tex   := textures[draw_cmd_texture[id]];
+    trans := draw_cmd_translate[id];
 
-  defer sdl.gl_swap_window(window.sdl_window);
+    // @Refactor(naum): for 2D do we need model_mat? We can put translation directly in vbo and just draw all elements
+    //model_mat := linalg.matrix4_translate({ trans.x, trans.y, 0 });
+    model_mat := linalg.MATRIX4_IDENTITY;
+    gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
 
-  if len(world_draw_calls) == 0 do return;
+    gl.BindTexture(gl.TEXTURE_2D, tex);
 
-  _render_flush_draw_calls(render_system, window);
+    //gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
+    gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
+    // @Future(naum): glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT, 0, start ? 4 : 0);
+  }
+  */
 
-  // @Refactor(naum): maybe split opaque and translucent draws
-  gl.Enable(gl.BLEND);
-  gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  clear(&vertex_buffer);
+  clear(&uv_buffer);
+  clear(&color_buffer);
+  clear(&element_buffer);
 
-  // assign buffer data
+  clear(&draw_cmd_start);
+  clear(&draw_cmd_count);
+  clear(&draw_cmd_texture);
+  clear(&draw_cmd_translate);
+}
+
+_change_texture :: proc(using render_system: ^Render_System, new_texture_id: Texture_Id) {
+  current_texture_id = new_texture_id;
+
+  gl.BindTexture(gl.TEXTURE_2D, textures[current_texture_id]);
+}
+
+_change_shader :: proc(using render_system: ^Render_System, new_shader: Shader) {
+  current_shader = new_shader;
+  gl.UseProgram(current_shader);
+
+  texture_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("tex"));
+  model_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("model_mat"));
+  view_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("view_mat"));
+  proj_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("proj_mat"));
+
+  gl.Uniform1i(texture_uniform, 0);
+
+  // @Refactor(naum): move to camera
+  // MVP matrixes
+  view_mat := linalg.MATRIX4_IDENTITY;
+
+  proj_mat := linalg.matrix_ortho3d(
+    0.0, f32(window.width),
+    f32(window.height), 0.0,
+    -1000.0, 1000.0
+  );
+
+  gl.UniformMatrix4fv(view_mat_uniform, 1, 0, &view_mat[0][0]);
+  gl.UniformMatrix4fv(proj_mat_uniform, 1, 0, &proj_mat[0][0]);
+
+  // @Refactor(naum): model rotation/translation via model_mat
+  model_mat := linalg.MATRIX4_IDENTITY;
+  gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
+}
+
+_create_buffer_data :: proc(using render_system: ^Render_System) {
   gl.BindBuffer(gl.ARRAY_BUFFER, vertex_buffer_object);
   gl.BufferData(gl.ARRAY_BUFFER,
                 size_of(f32) * len(vertex_buffer),
@@ -329,11 +373,26 @@ render :: proc(using render_system: ^Render_System, window: ^Window) {
                 size_of(u32) * len(element_buffer),
                 &element_buffer[0],
                 gl.STREAM_DRAW);
+}
 
+// @Incomplete(naum): shader/texture split
+// @Incomplete(naum): use camera info
+render :: proc(using render_system: ^Render_System, window: ^Window) {
+  gl.ClearColor(1.0, 0.0, 1.0, 1.0);
+  gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  gl.BindVertexArray(vao);
+  gl.Enable(gl.DEPTH_TEST);
+  gl.DepthFunc(gl.LEQUAL);
 
-  gl.UseProgram(shader);
+  defer sdl.gl_swap_window(window.sdl_window);
+
+  if len(world_draw_cmds) == 0 do return;
+
+  // @Refactor(naum): maybe split opaque and translucent draws
+  gl.Enable(gl.BLEND);
+  gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  gl.BindVertexArray(vertex_array_object);
 
   // vertex
   gl.EnableVertexAttribArray(0);
@@ -355,48 +414,7 @@ render :: proc(using render_system: ^Render_System, window: ^Window) {
 
   // texture
   gl.ActiveTexture(gl.TEXTURE0);
-  gl.Uniform1i(texture_uniform, 0);
 
-
-  // MVP matrixes
-  view_mat := linalg.MATRIX4_IDENTITY;
-
-  proj_mat := linalg.matrix_ortho3d(
-    0.0, f32(window.width),
-    f32(window.height), 0.0,
-    -1000.0, 1000.0
-  );
-
-  gl.UniformMatrix4fv(view_mat_uniform, 1, 0, &view_mat[0][0]);
-  gl.UniformMatrix4fv(proj_mat_uniform, 1, 0, &proj_mat[0][0]);
-
-  // @Refactor(naum): model rotation/translation via model_mat
-  model_mat := linalg.MATRIX4_IDENTITY;
-  gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
-
-  // @Fix(naum): all same texture
-  gl.BindTexture(gl.TEXTURE_2D, textures[draw_call_texture[0]]);
-  gl.DrawElements(gl.TRIANGLES, i32(len(element_buffer)), gl.UNSIGNED_INT, rawptr(uintptr(0)));
-
-  /*
-  for _, id in draw_call_start {
-    start := draw_call_start[id];
-    count := draw_call_count[id];
-    tex   := textures[draw_call_texture[id]];
-    trans := draw_call_translate[id];
-
-    // @Refactor(naum): for 2D do we need model_mat? We can put translation directly in vbo and just draw all elements
-    //model_mat := linalg.matrix4_translate({ trans.x, trans.y, 0 });
-    model_mat := linalg.MATRIX4_IDENTITY;
-    gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
-
-    gl.BindTexture(gl.TEXTURE_2D, tex);
-
-    //gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
-    gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
-    // @Future(naum): glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT, 0, start ? 4 : 0);
-  }
-  */
-
-
+  //
+  _render_flush_draw_cmds(render_system, window);
 }
