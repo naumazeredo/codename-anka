@@ -60,55 +60,14 @@ Render_System :: struct {
   uv_buffer      : [dynamic]f32,
   element_buffer : [dynamic]u32,
 
-  draw_cmd_texture   : [dynamic]u32,
   draw_cmd_start     : [dynamic]u32,
   draw_cmd_count     : [dynamic]u32,
   draw_cmd_translate : [dynamic]Vec2f,
+  draw_cmd_pivot     : [dynamic]Vec2f,
+  draw_cmd_rotation  : [dynamic]f32,
 
   current_shader     : Shader,
   current_texture_id : Texture_Id,
-}
-
-/*
-Render_Mode :: enum {
-  Wireframe,
-  Solid,
-}
-*/
-
-Texture_Flip :: enum {
-  Horizontal,
-  Vertical,
-}
-
-Texture_Flip_Set :: bit_set[Texture_Flip];
-
-Draw_Quad :: struct {
-  x, y, w, h : f32,
-}
-
-// @Refactor(naum): subtexture (uv) information: create a sprite container?
-//                  do we need need access to uv or can we use whole sprite?
-// uses texture size
-Draw_Quad_Scale :: struct {
-  pos   : Vec2f,
-  scale : Vec2f,
-}
-
-Draw_Type :: union {
-  Draw_Quad,
-  Draw_Quad_Scale,
-
-  // @Refactor(naum): 2D vs 3D
-}
-
-// @Naming(naum): draw_cmd vs draw_command
-Draw_Command :: struct {
-  shader  : Shader,
-  texture : Texture_Id, // @Future(naum): subtexture (with UV info)
-  layer   : i32, // (2D only) less is back, high is front
-  flip    : Texture_Flip_Set,
-  type    : Draw_Type,
 }
 
 
@@ -182,29 +141,115 @@ load_image :: proc(using render_system: ^Render_System, filename: string) -> (Te
   return u32(len(textures)-1), true;
 }
 
-// @Incomplete(naum): draw commands (2d/3d)
-// @Incomplete(naum): render layer
-// @Incompelte(naum): add color
-// @Refactor(naum): xywh uniform coordinates (not screen coordinates)
-// @Speed(naum): gather by layer (depth test instead?), shader, texture (in this order)
+
+// --------------
+//    Draw API
+// --------------
+
+
+Texture_Flip :: enum {
+  Horizontal,
+  Vertical,
+}
+
+Texture_Flip_Set :: bit_set[Texture_Flip];
+
+/*
+// @Future(naum): UI pivot work
+Anchor_Horizontal :: enum { Left, Middle, Right }
+Anchor_Vertical   :: enum { Top, Middle, Bottom }
+Anchor            :: struct {
+  horizontal : Anchor_Horizontal,
+  vertical   : Anchor_Vertical,
+}
+
+Pivot :: union {
+  Vec2f,
+}
+*/
+
+Draw_Quad :: struct {
+  x, y, w, h : f32,
+}
+
+// @Refactor(naum): subtexture (uv) information: create a sprite container?
+//                  do we need need access to uv or can we use whole sprite?
+// uses texture size
+Draw_Texture :: struct {
+  pos   : Vec2f,
+  scale : Vec2f,
+  rot   : f32,
+}
+
+Draw_Type :: union {
+  Draw_Quad,
+  Draw_Texture,
+}
+
+Draw_Command :: struct {
+  shader  : Shader,
+  texture : Texture_Id, // @Future(naum): subtexture (with UV info)
+  layer   : i32, // (2D only) less is back, high is front
+  flip    : Texture_Flip_Set,
+  pivot   : Vec2f,
+  type    : Draw_Type,
+}
+
+// @Incomplete(naum): add color
 render_add_draw_cmd :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
   draw_cmd := Draw_Command {
     shader = shader,
     texture = tex,
     layer = layer,
+    //pivot = { 0.0, 0.0 },
+    pivot = { 10, 10 },
+    //pivot = { w/2, h/2 },
     flip = flip,
+    /*
     type = Draw_Quad {
       x, y, w, h
+    }
+    */
+    type = Draw_Texture {
+      pos = { x, y },
+      scale = { 1, 1 },
+      rot = linalg.radians(0.0),
     }
   };
 
   append(&world_draw_cmds, draw_cmd);
 }
 
-// @Incomplete(naum): considering same shader and texture for all
+// @Incomplete(naum): scale
+render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
+  draw_cmd := Draw_Command {
+    shader = shader,
+    texture = tex,
+    layer = layer,
+    //pivot = { 0.0, 0.0 },
+    pivot = { 10, 10 },
+    //pivot = { w/2, h/2 },
+    flip = flip,
+    /*
+    type = Draw_Quad {
+      x, y, w, h
+    }
+    */
+    type = Draw_Texture {
+      pos = { x, y },
+      scale = { 1, 1 },
+      rot = linalg.radians(0.0),
+    }
+  };
+
+  append(&world_draw_cmds, draw_cmd);
+}
+
+// @Refactor(naum): gather by shader, texture (in this order)
 _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Window) {
   x, y : f32;
   w, h : f32;
+  rot  : f32;
 
   for draw_cmd, id in world_draw_cmds {
     // @Refactor(naum): gather multiple cmds per draw call
@@ -216,8 +261,15 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
         x = type.x; y = type.y;
         w = type.w; h = type.h;
 
-      case Draw_Quad_Scale:
-        unimplemented();
+      case Draw_Texture:
+        x = type.pos.x; y = type.pos.y;
+
+        w = f32(textures_w[draw_cmd.texture]);
+        h = f32(textures_h[draw_cmd.texture]);
+
+        rot = type.rot;
+
+        //scale : Vec2f,
     }
 
 
@@ -230,18 +282,10 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
     append(&element_buffer, elem + 2); append(&element_buffer, elem + 3); append(&element_buffer, elem + 0);
 
     // vertex
-    // @Refactor(naum): model rotation/translation via model_mat (?)
-    /*
     append(&vertex_buffer, 0); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_cmd.layer));
     append(&vertex_buffer, w); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_cmd.layer));
     append(&vertex_buffer, w); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_cmd.layer));
     append(&vertex_buffer, 0); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_cmd.layer));
-    */
-
-    append(&vertex_buffer, x+0); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_cmd.layer));
-    append(&vertex_buffer, x+w); append(&vertex_buffer, y+0); append(&vertex_buffer, f32(draw_cmd.layer));
-    append(&vertex_buffer, x+w); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_cmd.layer));
-    append(&vertex_buffer, x+0); append(&vertex_buffer, y+h); append(&vertex_buffer, f32(draw_cmd.layer));
 
     // color
     append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1);
@@ -269,8 +313,9 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
     }
 
     append(&draw_cmd_count, 6);
-    append(&draw_cmd_texture, draw_cmd.texture);
     append(&draw_cmd_translate, Vec2f { x, y });
+    append(&draw_cmd_pivot, draw_cmd.pivot);
+    append(&draw_cmd_rotation, rot);
 
     // @Refactor(naum): gather multiple cmds per draw call
     _render_queued_cmds(render_system);
@@ -279,29 +324,30 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
   clear(&world_draw_cmds);
 }
 
+// @Incomplete(naum): add scale
+_calculate_matrix :: proc(translate: Vec2f, rotate: f32, pivot: Vec2f) -> linalg.Matrix4 {
+  mat := linalg.MATRIX4_IDENTITY;
+  mat = linalg.mul(mat, linalg.matrix4_translate({ translate.x, translate.y, 0 }));
+  mat = linalg.mul(mat, linalg.matrix4_rotate(rotate, { 0.0, 0.0, 1.0 }));
+  mat = linalg.mul(mat, linalg.matrix4_translate({ -pivot.x, -pivot.y, 0 }));
+  return mat;
+}
+
 _render_queued_cmds :: proc(using render_system: ^Render_System) {
   _create_buffer_data(render_system);
-  gl.DrawElements(gl.TRIANGLES, i32(len(element_buffer)), gl.UNSIGNED_INT, rawptr(uintptr(0)));
 
-  /*
   for _, id in draw_cmd_start {
     start := draw_cmd_start[id];
     count := draw_cmd_count[id];
-    tex   := textures[draw_cmd_texture[id]];
     trans := draw_cmd_translate[id];
+    pivot := draw_cmd_pivot[id];
+    rot   := draw_cmd_rotation[id];
 
-    // @Refactor(naum): for 2D do we need model_mat? We can put translation directly in vbo and just draw all elements
-    //model_mat := linalg.matrix4_translate({ trans.x, trans.y, 0 });
-    model_mat := linalg.MATRIX4_IDENTITY;
+    model_mat := _calculate_matrix(trans, rot, pivot);
     gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
 
-    gl.BindTexture(gl.TEXTURE_2D, tex);
-
-    //gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
     gl.DrawElements(gl.TRIANGLES, i32(count), gl.UNSIGNED_INT, rawptr((uintptr)(start * size_of(u32))));
-    // @Future(naum): glDrawElementsBaseVertex(GL_TRIANGLES, count, GL_UNSIGNED_INT, 0, start ? 4 : 0);
   }
-  */
 
   clear(&vertex_buffer);
   clear(&uv_buffer);
@@ -310,8 +356,9 @@ _render_queued_cmds :: proc(using render_system: ^Render_System) {
 
   clear(&draw_cmd_start);
   clear(&draw_cmd_count);
-  clear(&draw_cmd_texture);
   clear(&draw_cmd_translate);
+  clear(&draw_cmd_pivot);
+  clear(&draw_cmd_rotation);
 }
 
 _change_texture :: proc(using render_system: ^Render_System, new_texture_id: Texture_Id) {
@@ -324,14 +371,15 @@ _change_shader :: proc(using render_system: ^Render_System, new_shader: Shader) 
   current_shader = new_shader;
   gl.UseProgram(current_shader);
 
-  texture_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("tex"));
+  texture_uniform   = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("tex"));
   model_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("model_mat"));
-  view_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("view_mat"));
-  proj_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("proj_mat"));
+  view_mat_uniform  = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("view_mat"));
+  proj_mat_uniform  = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("proj_mat"));
 
   gl.Uniform1i(texture_uniform, 0);
 
   // @Refactor(naum): move to camera
+  // @Refactor(naum): learn why we need a view matrix
   // MVP matrixes
   view_mat := linalg.MATRIX4_IDENTITY;
 
@@ -343,10 +391,6 @@ _change_shader :: proc(using render_system: ^Render_System, new_shader: Shader) 
 
   gl.UniformMatrix4fv(view_mat_uniform, 1, 0, &view_mat[0][0]);
   gl.UniformMatrix4fv(proj_mat_uniform, 1, 0, &proj_mat[0][0]);
-
-  // @Refactor(naum): model rotation/translation via model_mat
-  model_mat := linalg.MATRIX4_IDENTITY;
-  gl.UniformMatrix4fv(model_mat_uniform, 1, 0, &model_mat[0][0]);
 }
 
 _create_buffer_data :: proc(using render_system: ^Render_System) {
@@ -375,8 +419,6 @@ _create_buffer_data :: proc(using render_system: ^Render_System) {
                 gl.STREAM_DRAW);
 }
 
-// @Incomplete(naum): shader/texture split
-// @Incomplete(naum): use camera info
 render :: proc(using render_system: ^Render_System, window: ^Window) {
   gl.ClearColor(1.0, 0.0, 1.0, 1.0);
   gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
