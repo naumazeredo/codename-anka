@@ -2,8 +2,8 @@ package anka
 
 import "core:fmt"
 
-import sdl "external/sdl2"
-import gl  "external/gl"
+import "external/sdl"
+import "external/gl"
 
 import "util"
 
@@ -55,7 +55,7 @@ create_window :: proc(name: string, w: u32, h: u32) -> Window {
   sdl.gl_set_swap_interval(1);
 
   //gl.load_up_to(3, 2, proc(p: rawptr, name: cstring) do (cast(^rawptr)p)^ = sdl.gl_get_proc_address(name); );
-  init_opengl(3, 2);
+  _init_opengl(3, 2);
 
   return window;
 }
@@ -64,3 +64,12 @@ destroy_window :: proc(using window: ^Window) {
   sdl.gl_delete_context(gl_context);
   sdl.destroy_window(sdl_window);
 }
+
+_init_opengl :: proc(version_major, version_minor: int) {
+  gl.load_up_to(
+    version_major,
+    version_minor,
+    proc(p: rawptr, name: cstring) do (cast(^rawptr)p)^ = sdl.gl_get_proc_address(name);
+  );
+}
+

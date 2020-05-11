@@ -1,15 +1,17 @@
 // @Incomplete(naum): create camera
 // @Incomplete(naum): create camera pixel perfect
 
+// @XXX(naum): does Odin have namespace
+
 package anka
 
 import "core:fmt"
 import "core:os"
 import "core:math/linalg"
 
-import sdl "external/sdl2"
-import gl  "external/gl"
-import stb "external/stb"
+import "external/sdl"
+import "external/gl"
+import "external/stb"
 
 import "util"
 
@@ -19,10 +21,10 @@ render_system : Render_System;
 // @Refactor(naum): move this to a gl specific file
 // @Refactor(naum): make all strongly typed
 Vertex_Array  :: u32;
-Shader        :: u32;
+Program       :: u32;
 Texture       :: u32;
 Buffer_Object :: u32;
-Uniform       :: i32;
+Location      :: i32;
 
 Texture_Id    :: u32;
 
@@ -32,9 +34,6 @@ Render_System :: struct {
   textures   : [dynamic]Texture,
   textures_w : [dynamic]u32,
   textures_h : [dynamic]u32,
-
-  // @Refactor(naum): allow multiple programs
-  shader: Shader,
 
   // @Refactor(naum): allow multiple objects
   vertex_array_object : Vertex_Array,
@@ -48,10 +47,10 @@ Render_System :: struct {
   world_draw_cmds : [dynamic]Draw_Command,
   //ui_draw_cmds    : [dynamic]Draw_Command,
 
-  texture_uniform   : Uniform,
-  model_mat_uniform : Uniform,
-  view_mat_uniform  : Uniform,
-  proj_mat_uniform  : Uniform,
+  texture_uniform   : Location,
+  model_mat_uniform : Location,
+  view_mat_uniform  : Location,
+  proj_mat_uniform  : Location,
 
   // @Refactor(naum): draw_commands : [dynamic]Draw_Command
   // frame buffers
@@ -66,18 +65,10 @@ Render_System :: struct {
   draw_cmd_pivot     : [dynamic]Vec2f,
   draw_cmd_rotation  : [dynamic]f32,
 
-  current_shader     : Shader,
+  current_program    : Program,
   current_texture_id : Texture_Id,
 }
 
-
-init_opengl :: proc(version_major, version_minor: int) {
-  gl.load_up_to(
-    version_major,
-    version_minor,
-    proc(p: rawptr, name: cstring) do (cast(^rawptr)p)^ = sdl.gl_get_proc_address(name);
-  );
-}
 
 init_render :: proc(using render_system: ^Render_System) {
   id, ok := gl.load_shaders("assets/shaders/default.vs", "assets/shaders/default.fs");
@@ -86,7 +77,7 @@ init_render :: proc(using render_system: ^Render_System) {
     fmt.println("Could not load shaders");
   }
 
-  shader = id;
+  current_program = id;
 
   gl.GenVertexArrays(1, &vertex_array_object);
 
@@ -187,7 +178,7 @@ Draw_Type :: union {
 }
 
 Draw_Command :: struct {
-  shader  : Shader,
+  program : Program,
   texture : Texture_Id, // @Future(naum): subtexture (with UV info)
   layer   : i32, // (2D only) less is back, high is front
   flip    : Texture_Flip_Set,
@@ -198,7 +189,7 @@ Draw_Command :: struct {
 // @Incomplete(naum): add color
 render_add_draw_cmd :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
   draw_cmd := Draw_Command {
-    shader = shader,
+    program = current_program,
     texture = tex,
     layer = layer,
     //pivot = { 0.0, 0.0 },
@@ -223,7 +214,7 @@ render_add_draw_cmd :: proc(using render_system: ^Render_System, x, y, w, h: f32
 // @Incomplete(naum): scale
 render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
   draw_cmd := Draw_Command {
-    shader = shader,
+    program = current_program,
     texture = tex,
     layer = layer,
     //pivot = { 0.0, 0.0 },
@@ -253,7 +244,7 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
 
   for draw_cmd, id in world_draw_cmds {
     // @Refactor(naum): gather multiple cmds per draw call
-    _change_shader (render_system, draw_cmd.shader);
+    _change_shader_program(render_system, draw_cmd.program);
     _change_texture(render_system, draw_cmd.texture);
 
     switch type in draw_cmd.type {
@@ -367,14 +358,15 @@ _change_texture :: proc(using render_system: ^Render_System, new_texture_id: Tex
   gl.BindTexture(gl.TEXTURE_2D, textures[current_texture_id]);
 }
 
-_change_shader :: proc(using render_system: ^Render_System, new_shader: Shader) {
-  current_shader = new_shader;
-  gl.UseProgram(current_shader);
+_change_shader_program :: proc(using render_system: ^Render_System, new_program: Program) {
+  current_program = new_program;
+  gl.UseProgram(current_program);
 
-  texture_uniform   = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("tex"));
-  model_mat_uniform = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("model_mat"));
-  view_mat_uniform  = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("view_mat"));
-  proj_mat_uniform  = gl.GetUniformLocation(shader, cast(^u8)util.create_cstring("proj_mat"));
+  // @Idea(naum): cache uniforms per shader
+  texture_uniform   = gl.GetUniformLocation(current_program, cast(^u8)util.create_cstring("tex"));
+  model_mat_uniform = gl.GetUniformLocation(current_program, cast(^u8)util.create_cstring("model_mat"));
+  view_mat_uniform  = gl.GetUniformLocation(current_program, cast(^u8)util.create_cstring("view_mat"));
+  proj_mat_uniform  = gl.GetUniformLocation(current_program, cast(^u8)util.create_cstring("proj_mat"));
 
   gl.Uniform1i(texture_uniform, 0);
 
@@ -436,6 +428,7 @@ render :: proc(using render_system: ^Render_System, window: ^Window) {
 
   gl.BindVertexArray(vertex_array_object);
 
+  // @Refactor(naum): glGetAttribLocation instead of hardcoding
   // vertex
   gl.EnableVertexAttribArray(0);
   gl.BindBuffer(gl.ARRAY_BUFFER, vertex_buffer_object);
@@ -459,4 +452,6 @@ render :: proc(using render_system: ^Render_System, window: ^Window) {
 
   //
   _render_flush_draw_cmds(render_system, window);
+
+  render_debug(render_system, window);
 }

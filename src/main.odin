@@ -3,8 +3,8 @@ package anka
 import "core:fmt"
 import "core:math/linalg"
 
-import sdl "external/sdl2"
-import gl  "external/gl"
+import "external/sdl"
+import "external/gl"
 
 window : Window;
 
@@ -79,6 +79,10 @@ main :: proc() {
   test();
 
   init_render(&render_system);
+  defer cleanup_render(&render_system);
+
+  init_debug(&render_system, &window);
+  defer cleanup_debug();
 
   tex, ok := load_image(&render_system, "./assets/gfx/template-32x32.png");
 
