@@ -186,50 +186,36 @@ Draw_Command :: struct {
   type    : Draw_Type,
 }
 
+// @Incomplete(naum): more shaders
 // @Incomplete(naum): add color
 render_add_draw_cmd :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
   draw_cmd := Draw_Command {
     program = current_program,
     texture = tex,
     layer = layer,
-    //pivot = { 0.0, 0.0 },
-    pivot = { 10, 10 },
-    //pivot = { w/2, h/2 },
+    pivot = { 0.0, 0.0 },
     flip = flip,
-    /*
     type = Draw_Quad {
       x, y, w, h
-    }
-    */
-    type = Draw_Texture {
-      pos = { x, y },
-      scale = { 1, 1 },
-      rot = linalg.radians(0.0),
     }
   };
 
   append(&world_draw_cmds, draw_cmd);
 }
 
+// @Incomplete(naum): more shaders
 // @Incomplete(naum): scale
-render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
+render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: Texture_Id, layer: i32, rot: f32 = 0, flip: Texture_Flip_Set = {}) {
   draw_cmd := Draw_Command {
     program = current_program,
     texture = tex,
     layer = layer,
-    //pivot = { 0.0, 0.0 },
-    pivot = { 10, 10 },
-    //pivot = { w/2, h/2 },
+    pivot = { 0.0, 0.0 },
     flip = flip,
-    /*
-    type = Draw_Quad {
-      x, y, w, h
-    }
-    */
     type = Draw_Texture {
       pos = { x, y },
       scale = { 1, 1 },
-      rot = linalg.radians(0.0),
+      rot = linalg.radians(rot),
     }
   };
 

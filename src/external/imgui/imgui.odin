@@ -137,6 +137,7 @@ foreign cimgui {
     @(link_name = "igSetNextWindowContentWidth")     set_next_window_content_width      :: proc (width : f32) ---;
     @(link_name = "igSetNextWindowCollapsed")        set_next_window_collapsed          :: proc (collapsed : bool, cond := Set_Cond(0)) ---;
     @(link_name = "igSetNextWindowFocus")            set_next_window_focus              :: proc () ---;
+    @(link_name = "igSetNextWindowBgAlpha")          set_next_window_bg_alpha           :: proc (alpha : f32) ---;
     @(link_name = "igSetWindowPos")                  set_window_pos_                    :: proc (pos : Vec2, cond := Set_Cond(0)) ---;
     @(link_name = "igSetWindowSize")                 set_window_size_                    :: proc (size : Vec2, cond := Set_Cond(0)) ---;
     @(link_name = "igSetWindowCollapsed")            set_window_collapsed_               :: proc (collapsed : bool, cond := Set_Cond(0)) ---;
