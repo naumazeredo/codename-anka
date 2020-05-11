@@ -30,6 +30,8 @@ handle_input :: proc() -> bool {
 
   vel_x,vel_y : f32;
   for sdl.poll_event(&e) != 0 {
+    handle_debug_input(&e);
+
     if e.type == sdl.Event_Type.Quit {
       return false;
     }
