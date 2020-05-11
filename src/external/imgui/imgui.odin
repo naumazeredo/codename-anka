@@ -451,7 +451,7 @@ foreign cimgui {
 
 // Widgets: Trees
 tree_node               :: proc{tree_node_str, tree_node_str_fmt, tree_node_ptr};
-tree_node_str           :: proc(label : string) -> bool                                                              { return im_tree_node(_make_label_string(label)); }
+tree_node_str           :: proc(label : string) -> bool                                                             { return im_tree_node(_make_label_string(label)); }
 tree_node_str_fmt       :: proc(str_id : string, fmt_ : string, args : ..any) -> bool                               { return im_tree_node_str(_make_label_string(str_id), _make_text_string(fmt_, ..args)); }
 tree_node_ptr           :: proc(ptr_id : rawptr, fmt_ : string, args : ..any) -> bool                               { return im_tree_node_ptr(ptr_id, _make_text_string(fmt_, ..args)); }
 
@@ -469,8 +469,8 @@ collapsing_header_ext   :: proc(label : string, p_open : ^bool, flags := Tree_No
 
 @(default_calling_convention="c")
 foreign cimgui {
-    @(link_name = "igTreeNode")                  im_tree_node                   :: proc(label : cstring) -> bool ---;
-    @(link_name = "igTreeNodeStr")               im_tree_node_str               :: proc(str_id : cstring, fmt_ : cstring) -> bool ---;
+    @(link_name = "igTreeNodeStr")               im_tree_node                   :: proc(label : cstring) -> bool ---;
+    @(link_name = "igTreeNodeStrStr")            im_tree_node_str               :: proc(str_id : cstring, fmt_ : cstring) -> bool ---;
     @(link_name = "igTreeNodePtr")               im_tree_node_ptr               :: proc(ptr_id : rawptr, fmt_ : cstring) -> bool ---;
     @(link_name = "igTreeNodeEx")                im_tree_node_ex                :: proc(label : cstring, flags : Tree_Node_Flags) -> bool ---;
     @(link_name = "igTreeNodeExStr")             im_tree_node_ex_str            :: proc(str_id : cstring, flags : Tree_Node_Flags, fmt_ : cstring) -> bool ---;
@@ -613,9 +613,9 @@ foreign cimgui {
     @(link_name = "igPopClipRect")                      pop_clip_rect                          :: proc() ---;
 
     // Styles
-    @(link_name = "igStyleColorsClassic")               style_colors_classic                   :: proc(dst : ^Style) ---;
-    @(link_name = "igStyleColorsDark")                  style_colors_dark                      :: proc(dst : ^Style) ---;
-    @(link_name = "igStyleColorsLight")                 style_colors_light                     :: proc(dst : ^Style) ---;
+    @(link_name = "igStyleColorsClassic")               style_colors_classic                   :: proc(dst : ^Style = nil) ---;
+    @(link_name = "igStyleColorsDark")                  style_colors_dark                      :: proc(dst : ^Style = nil) ---;
+    @(link_name = "igStyleColorsLight")                 style_colors_light                     :: proc(dst : ^Style = nil) ---;
 
     // Utilities
     @(link_name = "igIsItemHovered")                    is_item_hovered                        :: proc (flags := Hovered_Flags(0)) -> bool ---;
