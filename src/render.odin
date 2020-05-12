@@ -159,6 +159,7 @@ Pivot :: union {
 }
 */
 
+// @Refactor(luciano) change to pos and size rather than x,y,w,h
 Draw_Quad :: struct {
   x, y, w, h : f32,
 }
@@ -175,8 +176,10 @@ Draw_Texture :: struct {
 Draw_Type :: union {
   Draw_Quad,
   Draw_Texture,
+  Draw_Sprite
 }
 
+// @Refactor(luciano) all commands have pos
 Draw_Command :: struct {
   program : Program,
   texture : Texture_Id, // @Future(naum): subtexture (with UV info)
@@ -184,6 +187,12 @@ Draw_Command :: struct {
   flip    : Texture_Flip_Set,
   pivot   : Vec2f,
   type    : Draw_Type,
+}
+
+Draw_Sprite :: struct {
+  pos     : Vec2f,
+  size    : Vec2f,
+  uvs     : [2]Vec2f,
 }
 
 // @Incomplete(naum): more shaders
@@ -222,16 +231,43 @@ render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: 
   append(&world_draw_cmds, draw_cmd);
 }
 
+// @Incomplete(luciano): 
+render_add_sprite :: proc(using render_system: ^Render_System, x,y,w,h: f32, tex: Texture_Id, layer:i32, uvs: [2]Vec2f) {
+  draw_cmd := Draw_Command {
+    program = current_program,
+    texture = tex,
+    layer = layer,
+    pivot = { 0.0, 0.0 },
+    type = Draw_Sprite {
+      pos = {x,y},
+      size = {w,h},
+      uvs = uvs
+    }
+  };
+
+  append(&world_draw_cmds, draw_cmd);
+}
+
 // @Refactor(naum): gather by shader, texture (in this order)
 _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Window) {
   x, y : f32;
   w, h : f32;
   rot  : f32;
 
+  uvs : [4]Vec2f;
+
   for draw_cmd, id in world_draw_cmds {
     // @Refactor(naum): gather multiple cmds per draw call
     _change_shader_program(render_system, draw_cmd.program);
     _change_texture(render_system, draw_cmd.texture);
+
+    fh := f32(.Horizontal in draw_cmd.flip ? 1.0 : 0.0);
+    fv := f32(.Vertical   in draw_cmd.flip ? 1.0 : 0.0);
+
+    uvs[0].x = fh;   uvs[0].y = fv;
+    uvs[1].x = 1-fh; uvs[1].y = fv;
+    uvs[2].x = 1-fh; uvs[2].y = 1-fv;
+    uvs[3].x = fh;   uvs[3].y = 1-fv;
 
     switch type in draw_cmd.type {
       case Draw_Quad:
@@ -247,6 +283,16 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
         rot = type.rot;
 
         //scale : Vec2f,
+      case Draw_Sprite:
+        x = type.pos.x; y = type.pos.y;
+
+        w = type.size.x;
+        h = type.size.y;
+
+        uvs[0].x = type.uvs[0].x; uvs[0].y = type.uvs[0].y;
+        uvs[1].x = type.uvs[1].x; uvs[1].y = type.uvs[0].y;
+        uvs[2].x = type.uvs[1].x; uvs[2].y = type.uvs[1].y;
+        uvs[3].x = type.uvs[0].x; uvs[3].y = type.uvs[1].y;
     }
 
 
@@ -271,15 +317,10 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
     append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1);
 
     // uv
-    // @Cleanup(naum)
-    fh := f32(.Horizontal in draw_cmd.flip ? 1.0 : 0.0);
-    fv := f32(.Vertical   in draw_cmd.flip ? 1.0 : 0.0);
-
-    // @Fix(naum): is it correct? (check when loading 3d models)
-    append(&uv_buffer, fh);   append(&uv_buffer, fv);
-    append(&uv_buffer, 1-fh); append(&uv_buffer, fv);
-    append(&uv_buffer, 1-fh); append(&uv_buffer, 1-fv);
-    append(&uv_buffer, fh);   append(&uv_buffer, 1-fv);
+    // @Cleanup(naum) unroll
+    for uv in uvs {
+      append(&uv_buffer, uv.x); append(&uv_buffer, uv.y);
+    }
 
     //
     if len(draw_cmd_start) == 0 {

@@ -114,6 +114,9 @@ main :: proc() {
 
     render_add_texture(&render_system, 10, 10, tex, 0, rot);
 
+    uvs := [2]Vec2f { {0.0, 0.0}, {1.0, 1.0} };
+    render_add_sprite(&render_system, 10, 10, 32, 32, tex, 0, uvs);
+
     resolve_collisions(&physics_system);
 
     render(&render_system, &window);
