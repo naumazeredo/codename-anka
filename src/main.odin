@@ -79,16 +79,52 @@ test :: proc() {
 
   add_player_collider(&physics_system, 32,32, &player_pos);
 
+  /*
   register_debug_program("rotation", proc(_: rawptr) {
-    //imgui.drag_float("", &rot, 1, 0, 360, "rotation: %.3f");
-    //imgui.slider_float("rotation", &rot, 0, 360);
-    //imgui.input_float("rotation", &rot);
-
     imgui_struct("rotation", rot);
+  });
+  */
+
+  register_debug_program("test struct", proc(_: rawptr) {
+    imgui_struct("test struct", ts);
   });
 }
 
 rot : f64 = 0.0;
+
+test_struct :: struct {
+  v_int : int,
+
+  v_i8  : i8,
+  v_i16 : i16,
+  v_i32 : i32,
+  v_i64 : i64,
+
+  v_u8  : u8,
+  v_u16 : u16,
+  v_u32 : u32,
+  v_u64 : u64,
+
+  v_f32 : f32,
+  v_f64 : f64,
+}
+
+ts := test_struct {
+  v_int = -5,
+
+  v_i8  = -4,
+  v_i16 = -3,
+  v_i32 = -2,
+  v_i64 = -1,
+
+  v_u8  = 0,
+  v_u16 = 1,
+  v_u32 = 2,
+  v_u64 = 3,
+
+  v_f32 = 3.1415,
+  v_f64 = 3.14159265358979323846264338327950,
+};
 
 // -----------
 //    /Test

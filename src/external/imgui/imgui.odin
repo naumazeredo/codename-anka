@@ -354,8 +354,9 @@ drag_int_range :: proc(label : string, v_current_min, v_current_max : ^i32, v_sp
     return im_drag_int_range(id, v_current_min, v_current_max, v_speed, v_min, v_max, df, mdf);
 }
 
-_scalar_get_data_type :: proc(data: ^$T) -> Data_Type {
-  type_info := type_info_of(typeid_of(type_of(data^)));
+// @XXX(naum): Odin is not good enough to use compile-time $T instead of run-time any...
+_scalar_get_data_type :: proc(value: any) -> Data_Type {
+  type_info := type_info_of(value.id);
 
   #partial switch kind in type_info.variant {
     case runtime.Type_Info_Integer:
@@ -383,19 +384,22 @@ _scalar_get_data_type :: proc(data: ^$T) -> Data_Type {
   }
 
   // @Incomplete(naum): fail
+  panic("type sent to imgui is not correct!");
   return Data_Type.S32;
 }
 
-drag_scalar_simple :: proc(label : string, data : ^$T, speed : f32 = 1.0, display_format : string = "\x00", power : f32 = 1.0) -> bool {
-  data_type := _scalar_get_data_type(data);
-  return im_drag_scalar(_make_label_string(label), data_type, cast(rawptr)data, speed, nil, nil, _make_display_fmt_string(display_format), power);
+// @XXX(naum): Odin is not good enough to use compile-time $T instead of run-time any...
+drag_scalar_simple :: proc(label : string, value: any, speed : f32 = 1.0, display_format : string = "\x00", power : f32 = 1.0) -> bool {
+  data_type := _scalar_get_data_type(value);
+  return im_drag_scalar(_make_label_string(label), data_type, value.data, speed, nil, nil, _make_display_fmt_string(display_format), power);
 }
 
-drag_scalar_minmax :: proc(label : string, data : ^$T, speed : f32, min, max : T, display_format : string = "\x00", power : f32 = 1.0) -> bool {
-  data_type := _scalar_get_data_type(data);
-  min, max := min, max;
-  p_min, p_max := &min, &max;
-  return im_drag_scalar(_make_label_string(label), data_type, cast(rawptr)data, speed, p_min, p_max, _make_display_fmt_string(display_format), power);
+// @XXX(naum): Odin is not good enough to use compile-time $T instead of run-time any...
+//             in this case we can't guarantee in compile time that value and min/max have the same time.
+drag_scalar_minmax :: proc(label : string, value : any, speed : f32, min, max : any, display_format : string = "\x00", power : f32 = 1.0) -> bool {
+  // @Incomplete(naum): assert that value and min/max have same types
+  data_type := _scalar_get_data_type(value);
+  return im_drag_scalar(_make_label_string(label), data_type, value.data, speed, min.data, max.data, _make_display_fmt_string(display_format), power);
 }
 
 drag_scalar :: proc{ drag_scalar_simple, drag_scalar_minmax };

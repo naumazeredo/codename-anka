@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:strings"
-import rt "core:runtime"
+import "core:runtime"
 
 import "external/sdl"
 import "external/gl"
@@ -34,11 +34,11 @@ render_debug :: proc(render_system: ^Render_System, window: ^Window) {
   imgui.begin(
     "Debug",
     nil,
-    imgui.Window_Flags.No_Resize |
     //imgui.Window_Flags.No_Title_Bar |
+    //imgui.Window_Flags.No_Background |
+    imgui.Window_Flags.No_Resize |
     imgui.Window_Flags.No_Collapse |
     imgui.Window_Flags.Horizontal_Scrollbar
-    //imgui.Window_Flags.No_Background // @Fix(naum): not working with current cimgui version
   );
 
   io := imgui.get_io();
@@ -46,6 +46,7 @@ render_debug :: proc(render_system: ^Render_System, window: ^Window) {
 
   for _, ind in debug_programs {
     program := &debug_programs[ind];
+    imgui.separator();
     program.procedure(program.data);
   }
 
@@ -96,80 +97,85 @@ unregister_debug_program :: proc(name: string) {
   fmt.println("Tried to unregister program that didn't exist");
 }
 
-imgui_struct :: proc(name: string, value: any) {
-  draw_value(name, value.data, type_info_of(value.id), nil);
+/*
+// @XXX(naum): Odin is not good enough to use compile-time $T instead of run-time any...
+imgui_struct :: proc(name: string, value: $T) {
+  type_info := type_info_of(typeid_of(type_of(value^)));
+  draw_value(name, value, type_info, nil);
 
-  draw_value :: proc(name: string, data: rawptr, type_info: ^rt.Type_Info, tags: map[string]any) {
+  draw_value :: proc(name: string, data: ^$T, type_info: ^runtime.Type_Info, tags: map[string]any) {
+    */
+
+imgui_struct :: proc(name: string, value: any) {
+  type_info := type_info_of(value.id);
+  draw_value(name, value.data, type_info, nil);
+
+  draw_value :: proc(name: string, data: rawptr, type_info: ^runtime.Type_Info, tags: map[string]any) {
     // @Incomplete(naum): check if tags has non_serialize
+    //fmt.println("data: ", data);
+    //fmt.println("type_info: ", type_info);
 
     switch kind in type_info.variant {
-      case rt.Type_Info_Integer: unimplemented();
-      case rt.Type_Info_Float:
+      case runtime.Type_Info_Named: draw_value(name, data, kind.base, tags);
+      case runtime.Type_Info_Integer:
+        if kind.signed {
+          switch type_info.size {
+            case 8: new_data := cast(i64)(cast(^i64)data)^; imgui.drag_scalar(name, new_data); (cast(^i64)data)^ = cast(i64)new_data;
+            case 4: new_data := cast(i64)(cast(^i32)data)^; imgui.drag_scalar(name, new_data); (cast(^i32)data)^ = cast(i32)new_data;
+            case 2: new_data := cast(i64)(cast(^i16)data)^; imgui.drag_scalar(name, new_data); (cast(^i16)data)^ = cast(i16)new_data;
+            case 1: new_data := cast(i64)(cast(^i8 )data)^; imgui.drag_scalar(name, new_data); (cast(^i8 )data)^ = cast(i8 )new_data;
+          }
+        } else {
+          switch type_info.size {
+            case 8: new_data := cast(u64)(cast(^u64)data)^; imgui.drag_scalar(name, new_data); (cast(^u64)data)^ = cast(u64)new_data;
+            case 4: new_data := cast(u64)(cast(^u32)data)^; imgui.drag_scalar(name, new_data); (cast(^u32)data)^ = cast(u32)new_data;
+            case 2: new_data := cast(u64)(cast(^u16)data)^; imgui.drag_scalar(name, new_data); (cast(^u16)data)^ = cast(u16)new_data;
+            case 1: new_data := cast(u64)(cast(^u8 )data)^; imgui.drag_scalar(name, new_data); (cast(^u8 )data)^ = cast(u8 )new_data;
+          }
+        }
+      case runtime.Type_Info_Float:
         switch type_info.size {
-          case 8:
-            new_data := cast(f64)(cast(^f64)data)^;
-            imgui.drag_scalar(fmt.tprint("##", name), &new_data);
-            (cast(^f64)data)^ = cast(f64)new_data;
-          case 4:
-            new_data := cast(f32)(cast(^f32)data)^;
-            imgui.drag_float(fmt.tprint("##", name), &new_data, 1, 0, 0, fmt.tprint(name, ": %.3f"));
-            (cast(^f32)data)^ = cast(f32)new_data;
+          case 8: new_data := cast(f64)(cast(^f64)data)^; imgui.drag_scalar(name, new_data); (cast(^f64)data)^ = cast(f64)new_data;
+          case 4: new_data := cast(f64)(cast(^f32)data)^; imgui.drag_scalar(name, new_data); (cast(^f32)data)^ = cast(f32)new_data;
         }
 
-      case rt.Type_Info_Named: unimplemented();
-      case rt.Type_Info_Rune: unimplemented();
-      case rt.Type_Info_Complex: unimplemented();
-      case rt.Type_Info_Quaternion: unimplemented();
-      case rt.Type_Info_String: unimplemented();
-      case rt.Type_Info_Boolean: unimplemented();
-      case rt.Type_Info_Any: unimplemented();
-      case rt.Type_Info_Type_Id: unimplemented();
-      case rt.Type_Info_Pointer: unimplemented();
-      case rt.Type_Info_Procedure: unimplemented();
-      case rt.Type_Info_Array: unimplemented();
-      case rt.Type_Info_Enumerated_Array: unimplemented();
-      case rt.Type_Info_Dynamic_Array: unimplemented();
-      case rt.Type_Info_Slice: unimplemented();
-      case rt.Type_Info_Tuple: unimplemented();
-      case rt.Type_Info_Struct: unimplemented();
-      case rt.Type_Info_Union: unimplemented();
-      case rt.Type_Info_Enum: unimplemented();
-      case rt.Type_Info_Map: unimplemented();
-      case rt.Type_Info_Bit_Field: unimplemented();
-      case rt.Type_Info_Bit_Set: unimplemented();
-      case rt.Type_Info_Opaque: unimplemented();
-      case rt.Type_Info_Simd_Vector: unimplemented();
+      case runtime.Type_Info_Rune:             unimplemented();
+      case runtime.Type_Info_Complex:          unimplemented();
+      case runtime.Type_Info_Quaternion:       unimplemented();
+      case runtime.Type_Info_String:           unimplemented();
+      case runtime.Type_Info_Boolean:          unimplemented();
+      case runtime.Type_Info_Any:              unimplemented();
+      case runtime.Type_Info_Type_Id:          unimplemented();
+      case runtime.Type_Info_Pointer:          unimplemented();
+      case runtime.Type_Info_Procedure:        unimplemented();
+      case runtime.Type_Info_Array:            unimplemented();
+      case runtime.Type_Info_Enumerated_Array: unimplemented();
+      case runtime.Type_Info_Dynamic_Array:    unimplemented();
+      case runtime.Type_Info_Slice:            unimplemented();
+      case runtime.Type_Info_Tuple:            unimplemented();
+
+      case runtime.Type_Info_Struct:
+        imgui.indent();
+        for name, ind in kind.names {
+          type   := kind.types[ind];
+          offset := kind.offsets[ind];
+
+          // @Incomplete(naum): add tags
+          draw_value(name, mem.ptr_offset(cast(^byte)data, cast(int)offset), type, nil);
+        }
+        imgui.unindent();
+
+      case runtime.Type_Info_Union:            unimplemented();
+      case runtime.Type_Info_Enum:             unimplemented();
+      case runtime.Type_Info_Map:              unimplemented();
+      case runtime.Type_Info_Bit_Field:        unimplemented();
+      case runtime.Type_Info_Bit_Set:          unimplemented();
+      case runtime.Type_Info_Opaque:           unimplemented();
+      case runtime.Type_Info_Simd_Vector:      unimplemented();
     }
   };
 }
 
-/*
-Type_Info_Named,
-Type_Info_Integer,
-Type_Info_Rune,
-Type_Info_Float,
-Type_Info_Complex,
-Type_Info_Quaternion,
-Type_Info_String,
-Type_Info_Boolean,
-Type_Info_Any,
-Type_Info_Type_Id,
-Type_Info_Pointer,
-Type_Info_Procedure,
-Type_Info_Array,
-Type_Info_Enumerated_Array,
-Type_Info_Dynamic_Array,
-Type_Info_Slice,
-Type_Info_Tuple,
-Type_Info_Struct,
-Type_Info_Union,
-Type_Info_Enum,
-Type_Info_Map,
-Type_Info_Bit_Field,
-Type_Info_Bit_Set,
-Type_Info_Opaque,
-Type_Info_Simd_Vector,
-*/
 
 
 
