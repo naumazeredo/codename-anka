@@ -439,7 +439,7 @@ _create_buffer_data :: proc(using render_system: ^Render_System) {
 }
 
 render :: proc(using render_system: ^Render_System, window: ^Window) {
-  gl.ClearColor(1.0, 0.0, 1.0, 1.0);
+  gl.ClearColor(0.0, 0.0, 0.0, 1.0);
   gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   gl.Enable(gl.DEPTH_TEST);

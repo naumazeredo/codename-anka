@@ -34,11 +34,11 @@ render_debug :: proc(render_system: ^Render_System, window: ^Window) {
   imgui.begin(
     "Debug",
     nil,
-    imgui.Window_Flags.NoResize |
-    //imgui.Window_Flags.NoTitleBar |
-    imgui.Window_Flags.NoCollapse |
-    imgui.Window_Flags.HorizontalScrollbar
-    //imgui.Window_Flags.NoBackground // @Fix(naum): not working with current cimgui version
+    imgui.Window_Flags.No_Resize |
+    //imgui.Window_Flags.No_Title_Bar |
+    imgui.Window_Flags.No_Collapse |
+    imgui.Window_Flags.Horizontal_Scrollbar
+    //imgui.Window_Flags.No_Background // @Fix(naum): not working with current cimgui version
   );
 
   io := imgui.get_io();
@@ -96,6 +96,80 @@ unregister_debug_program :: proc(name: string) {
   fmt.println("Tried to unregister program that didn't exist");
 }
 
+imgui_struct :: proc(name: string, value: any) {
+  draw_value(name, value.data, type_info_of(value.id), nil);
+
+  draw_value :: proc(name: string, data: rawptr, type_info: ^rt.Type_Info, tags: map[string]any) {
+    // @Incomplete(naum): check if tags has non_serialize
+
+    switch kind in type_info.variant {
+      case rt.Type_Info_Integer: unimplemented();
+      case rt.Type_Info_Float:
+        switch type_info.size {
+          case 8:
+            new_data := cast(f64)(cast(^f64)data)^;
+            imgui.drag_scalar(fmt.tprint("##", name), &new_data);
+            (cast(^f64)data)^ = cast(f64)new_data;
+          case 4:
+            new_data := cast(f32)(cast(^f32)data)^;
+            imgui.drag_float(fmt.tprint("##", name), &new_data, 1, 0, 0, fmt.tprint(name, ": %.3f"));
+            (cast(^f32)data)^ = cast(f32)new_data;
+        }
+
+      case rt.Type_Info_Named: unimplemented();
+      case rt.Type_Info_Rune: unimplemented();
+      case rt.Type_Info_Complex: unimplemented();
+      case rt.Type_Info_Quaternion: unimplemented();
+      case rt.Type_Info_String: unimplemented();
+      case rt.Type_Info_Boolean: unimplemented();
+      case rt.Type_Info_Any: unimplemented();
+      case rt.Type_Info_Type_Id: unimplemented();
+      case rt.Type_Info_Pointer: unimplemented();
+      case rt.Type_Info_Procedure: unimplemented();
+      case rt.Type_Info_Array: unimplemented();
+      case rt.Type_Info_Enumerated_Array: unimplemented();
+      case rt.Type_Info_Dynamic_Array: unimplemented();
+      case rt.Type_Info_Slice: unimplemented();
+      case rt.Type_Info_Tuple: unimplemented();
+      case rt.Type_Info_Struct: unimplemented();
+      case rt.Type_Info_Union: unimplemented();
+      case rt.Type_Info_Enum: unimplemented();
+      case rt.Type_Info_Map: unimplemented();
+      case rt.Type_Info_Bit_Field: unimplemented();
+      case rt.Type_Info_Bit_Set: unimplemented();
+      case rt.Type_Info_Opaque: unimplemented();
+      case rt.Type_Info_Simd_Vector: unimplemented();
+    }
+  };
+}
+
+/*
+Type_Info_Named,
+Type_Info_Integer,
+Type_Info_Rune,
+Type_Info_Float,
+Type_Info_Complex,
+Type_Info_Quaternion,
+Type_Info_String,
+Type_Info_Boolean,
+Type_Info_Any,
+Type_Info_Type_Id,
+Type_Info_Pointer,
+Type_Info_Procedure,
+Type_Info_Array,
+Type_Info_Enumerated_Array,
+Type_Info_Dynamic_Array,
+Type_Info_Slice,
+Type_Info_Tuple,
+Type_Info_Struct,
+Type_Info_Union,
+Type_Info_Enum,
+Type_Info_Map,
+Type_Info_Bit_Field,
+Type_Info_Bit_Set,
+Type_Info_Opaque,
+Type_Info_Simd_Vector,
+*/
 
 
 
@@ -135,27 +209,27 @@ _init_imgui :: proc(render_system: ^Render_System, window: ^Window) {
 
   io := imgui.get_io();
 
-  io.key_map[imgui.Key.Tab]         = i32(sdl.Scancode.Tab);
-  io.key_map[imgui.Key.LeftArrow]   = i32(sdl.Scancode.Left);
-  io.key_map[imgui.Key.RightArrow]  = i32(sdl.Scancode.Right);
-  io.key_map[imgui.Key.UpArrow]     = i32(sdl.Scancode.Up);
-  io.key_map[imgui.Key.DownArrow]   = i32(sdl.Scancode.Down);
-  io.key_map[imgui.Key.PageUp]      = i32(sdl.Scancode.Page_Up);
-  io.key_map[imgui.Key.PageDown]    = i32(sdl.Scancode.Page_Down);
-  io.key_map[imgui.Key.Home]        = i32(sdl.Scancode.Home);
-  io.key_map[imgui.Key.End]         = i32(sdl.Scancode.End);
-  //io.key_map[imgui.Key.Insert]      = i32(sdl.Scancode.Insert);
-  io.key_map[imgui.Key.Delete]      = i32(sdl.Scancode.Delete);
-  io.key_map[imgui.Key.Backspace]   = i32(sdl.Scancode.Backspace);
-  //io.key_map[imgui.Key.Space]       = i32(sdl.Scancode.Space);
-  io.key_map[imgui.Key.Escape]      = i32(sdl.Scancode.Escape);
-  //io.key_map[imgui.Key.KeyPadEnter] = i32(sdl.Scancode.Kp_Enter);
-  io.key_map[imgui.Key.A]           = i32(sdl.Scancode.A);
-  io.key_map[imgui.Key.C]           = i32(sdl.Scancode.C);
-  io.key_map[imgui.Key.V]           = i32(sdl.Scancode.V);
-  io.key_map[imgui.Key.X]           = i32(sdl.Scancode.X);
-  io.key_map[imgui.Key.Y]           = i32(sdl.Scancode.Y);
-  io.key_map[imgui.Key.Z]           = i32(sdl.Scancode.Z);
+  io.key_map[imgui.Key.Tab]           = i32(sdl.Scancode.Tab);
+  io.key_map[imgui.Key.Left_Arrow]    = i32(sdl.Scancode.Left);
+  io.key_map[imgui.Key.Right_Arrow]   = i32(sdl.Scancode.Right);
+  io.key_map[imgui.Key.Up_Arrow]      = i32(sdl.Scancode.Up);
+  io.key_map[imgui.Key.Down_Arrow]    = i32(sdl.Scancode.Down);
+  io.key_map[imgui.Key.Page_Up]       = i32(sdl.Scancode.Page_Up);
+  io.key_map[imgui.Key.Page_Down]     = i32(sdl.Scancode.Page_Down);
+  io.key_map[imgui.Key.Home]          = i32(sdl.Scancode.Home);
+  io.key_map[imgui.Key.End]           = i32(sdl.Scancode.End);
+  io.key_map[imgui.Key.Insert]        = i32(sdl.Scancode.Insert);
+  io.key_map[imgui.Key.Delete]        = i32(sdl.Scancode.Delete);
+  io.key_map[imgui.Key.Backspace]     = i32(sdl.Scancode.Backspace);
+  io.key_map[imgui.Key.Space]         = i32(sdl.Scancode.Space);
+  io.key_map[imgui.Key.Escape]        = i32(sdl.Scancode.Escape);
+  io.key_map[imgui.Key.Key_Pad_Enter] = i32(sdl.Scancode.Kp_Enter);
+  io.key_map[imgui.Key.A]             = i32(sdl.Scancode.A);
+  io.key_map[imgui.Key.C]             = i32(sdl.Scancode.C);
+  io.key_map[imgui.Key.V]             = i32(sdl.Scancode.V);
+  io.key_map[imgui.Key.X]             = i32(sdl.Scancode.X);
+  io.key_map[imgui.Key.Y]             = i32(sdl.Scancode.Y);
+  io.key_map[imgui.Key.Z]             = i32(sdl.Scancode.Z);
 
   /*
   // @Incomplete(naum): IME configuration
@@ -207,8 +281,10 @@ _init_imgui :: proc(render_system: ^Render_System, window: ^Window) {
   debug_attrib_uv       = gl.GetAttribLocation(debug_shader_program, cast(^u8)util.create_cstring("UV"));
   debug_attrib_color    = gl.GetAttribLocation(debug_shader_program, cast(^u8)util.create_cstring("Color"));
 
+
   gl.GenBuffers(1, &debug_vbo);
   gl.GenBuffers(1, &debug_ebo);
+
 
   // font loading
   pixels : ^u8;
@@ -247,29 +323,29 @@ _init_imgui :: proc(render_system: ^Render_System, window: ^Window) {
   style.button_text_align = imgui.Vec2{0.5, 0.5};
 
   style.colors[imgui.Style_Color.Text]                  = imgui.Vec4{1.00, 1.00, 1.00, 1.00};
-  style.colors[imgui.Style_Color.TextDisabled]          = imgui.Vec4{0.63, 0.63, 0.63, 1.00};
-  style.colors[imgui.Style_Color.WindowBg]              = imgui.Vec4{0.23, 0.23, 0.23, 0.85};
-  style.colors[imgui.Style_Color.ChildBg]               = imgui.Vec4{0.20, 0.20, 0.20, 1.00};
-  style.colors[imgui.Style_Color.PopupBg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.96};
+  style.colors[imgui.Style_Color.Text_Disabled]          = imgui.Vec4{0.63, 0.63, 0.63, 1.00};
+  style.colors[imgui.Style_Color.Window_Bg]              = imgui.Vec4{0.23, 0.23, 0.23, 0.85};
+  style.colors[imgui.Style_Color.Child_Bg]               = imgui.Vec4{0.20, 0.20, 0.20, 1.00};
+  style.colors[imgui.Style_Color.Popup_Bg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.96};
   style.colors[imgui.Style_Color.Border]                = imgui.Vec4{0.18, 0.18, 0.18, 0.98};
-  style.colors[imgui.Style_Color.BorderShadow]          = imgui.Vec4{0.00, 0.00, 0.00, 0.04};
-  style.colors[imgui.Style_Color.FrameBg]               = imgui.Vec4{0.00, 0.00, 0.00, 0.29};
-  style.colors[imgui.Style_Color.TitleBg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.98};
-  style.colors[imgui.Style_Color.TitleBgCollapsed]      = imgui.Vec4{0.12, 0.12, 0.12, 0.49};
-  style.colors[imgui.Style_Color.TitleBgActive]         = imgui.Vec4{0.33, 0.33, 0.33, 0.98};
-  style.colors[imgui.Style_Color.MenuBarBg]             = imgui.Vec4{0.11, 0.11, 0.11, 0.42};
-  style.colors[imgui.Style_Color.ScrollbarBg]           = imgui.Vec4{0.00, 0.00, 0.00, 0.08};
-  style.colors[imgui.Style_Color.ScrollbarGrab]         = imgui.Vec4{0.27, 0.27, 0.27, 1.00};
-  style.colors[imgui.Style_Color.ScrollbarGrabHovered]  = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
-  style.colors[imgui.Style_Color.CheckMark]             = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
-  style.colors[imgui.Style_Color.SliderGrab]            = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
+  style.colors[imgui.Style_Color.Border_Shadow]          = imgui.Vec4{0.00, 0.00, 0.00, 0.04};
+  style.colors[imgui.Style_Color.Frame_Bg]               = imgui.Vec4{0.00, 0.00, 0.00, 0.29};
+  style.colors[imgui.Style_Color.Title_Bg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.98};
+  style.colors[imgui.Style_Color.Title_Bg_Collapsed]      = imgui.Vec4{0.12, 0.12, 0.12, 0.49};
+  style.colors[imgui.Style_Color.Title_Bg_Active]         = imgui.Vec4{0.33, 0.33, 0.33, 0.98};
+  style.colors[imgui.Style_Color.Menu_Bar_Bg]             = imgui.Vec4{0.11, 0.11, 0.11, 0.42};
+  style.colors[imgui.Style_Color.Scrollbar_Bg]           = imgui.Vec4{0.00, 0.00, 0.00, 0.08};
+  style.colors[imgui.Style_Color.Scrollbar_Grab]         = imgui.Vec4{0.27, 0.27, 0.27, 1.00};
+  style.colors[imgui.Style_Color.Scrollbar_Grab_Hovered]  = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
+  style.colors[imgui.Style_Color.Check_Mark]             = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
+  style.colors[imgui.Style_Color.Slider_Grab]            = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
   style.colors[imgui.Style_Color.Button]                = imgui.Vec4{0.42, 0.42, 0.42, 0.60};
-  style.colors[imgui.Style_Color.ButtonHovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
+  style.colors[imgui.Style_Color.Button_Hovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
   style.colors[imgui.Style_Color.Header]                = imgui.Vec4{0.31, 0.31, 0.31, 0.98};
-  style.colors[imgui.Style_Color.HeaderHovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
-  style.colors[imgui.Style_Color.HeaderActive]          = imgui.Vec4{0.80, 0.50, 0.50, 1.00};
-  style.colors[imgui.Style_Color.TextSelectedBg]        = imgui.Vec4{0.65, 0.35, 0.35, 0.26};
-  // style.colors[imgui.Style_Color.ModalWindowDimBg]      = imgui.Vec4{0.20, 0.20, 0.20, 0.35};
+  style.colors[imgui.Style_Color.Header_Hovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
+  style.colors[imgui.Style_Color.Header_Active]          = imgui.Vec4{0.80, 0.50, 0.50, 1.00};
+  style.colors[imgui.Style_Color.Text_Selected_Bg]        = imgui.Vec4{0.65, 0.35, 0.35, 0.26};
+  // style.colors[imgui.Style_Color.Modal_Window_Dim_Bg]      = imgui.Vec4{0.20, 0.20, 0.20, 0.35};
 }
 
 _cleanup_imgui :: proc() {
@@ -305,7 +381,6 @@ _new_frame :: proc(render_system: ^Render_System, window: ^Window) {
   frequency := sdl.get_performance_frequency();
   current_time := sdl.get_performance_counter();
   io.delta_time = debug_time > 0 ? f32(current_time - debug_time) / f32(frequency) : 1.0 / 60;
-  //io.delta_time = 1.0 / 60;
   debug_time = current_time;
 
 
@@ -320,8 +395,19 @@ _new_frame :: proc(render_system: ^Render_System, window: ^Window) {
   debug_mouse_pressed = { false, false, false };
 
   if sdl.get_mouse_focus() == debug_sdl_window {
+    /*
+    window_x, window_y : i32;
+    sdl.get_window_position(debug_sdl_window, &window_x, &window_y);
+    sdl.get_global_mouse_state(&mouse_x, &mouse_y);
+    mouse_x -= window_x;
+    mouse_y -= window_y;
+    */
+
     io.mouse_pos = imgui.Vec2 { f32(mouse_x), f32(mouse_y) };
   }
+
+  any_mouse_button_down := imgui.is_any_mouse_down();
+  sdl.capture_mouse(any_mouse_button_down ? sdl.Bool.True : sdl.Bool.False);
 
   imgui.new_frame();
 }
@@ -376,24 +462,24 @@ _render :: proc() {
   gl.EnableVertexAttribArray(u32(debug_attrib_position)); // @Refactor(naum): Location should be u32, not i32
   gl.EnableVertexAttribArray(u32(debug_attrib_uv));
   gl.EnableVertexAttribArray(u32(debug_attrib_color));
-  gl.VertexAttribPointer(u32(debug_attrib_position), 2, gl.FLOAT,         gl.FALSE, size_of(imgui.DrawVert), cast(rawptr)offset_of(imgui.DrawVert, pos));
-  gl.VertexAttribPointer(u32(debug_attrib_uv),       2, gl.FLOAT,         gl.FALSE, size_of(imgui.DrawVert), cast(rawptr)offset_of(imgui.DrawVert, uv));
-  gl.VertexAttribPointer(u32(debug_attrib_color),    4, gl.UNSIGNED_BYTE, gl.TRUE,  size_of(imgui.DrawVert), cast(rawptr)offset_of(imgui.DrawVert, col));
+  gl.VertexAttribPointer(u32(debug_attrib_position), 2, gl.FLOAT,         gl.FALSE, size_of(imgui.Draw_Vert), cast(rawptr)offset_of(imgui.Draw_Vert, pos));
+  gl.VertexAttribPointer(u32(debug_attrib_uv),       2, gl.FLOAT,         gl.FALSE, size_of(imgui.Draw_Vert), cast(rawptr)offset_of(imgui.Draw_Vert, uv));
+  gl.VertexAttribPointer(u32(debug_attrib_color),    4, gl.UNSIGNED_BYTE, gl.TRUE,  size_of(imgui.Draw_Vert), cast(rawptr)offset_of(imgui.Draw_Vert, col));
 
   new_list := mem.slice_ptr(data.cmd_lists, int(data.cmd_lists_count));
   for cmd_list in new_list {
-    idx_buffer_offset : ^imgui.DrawIdx = nil;
+    idx_buffer_offset : ^imgui.Draw_Idx = nil;
 
     gl.BufferData(
       gl.ARRAY_BUFFER,
-      cast(int)(cmd_list.vtx_buffer.size * size_of(imgui.DrawVert)),
+      cast(int)(cmd_list.vtx_buffer.size * size_of(imgui.Draw_Vert)),
       rawptr(cmd_list.vtx_buffer.data),
       gl.STREAM_DRAW
     );
 
     gl.BufferData(
       gl.ELEMENT_ARRAY_BUFFER,
-      cast(int)(cmd_list.idx_buffer.size * size_of(imgui.DrawIdx)),
+      cast(int)(cmd_list.idx_buffer.size * size_of(imgui.Draw_Idx)),
       rawptr(cmd_list.idx_buffer.data),
       gl.STREAM_DRAW
     );

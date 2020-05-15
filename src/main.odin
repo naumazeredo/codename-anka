@@ -80,11 +80,15 @@ test :: proc() {
   add_player_collider(&physics_system, 32,32, &player_pos);
 
   register_debug_program("rotation", proc(_: rawptr) {
-    imgui.drag_float("rotation", &rot);
+    //imgui.drag_float("", &rot, 1, 0, 360, "rotation: %.3f");
+    //imgui.slider_float("rotation", &rot, 0, 360);
+    //imgui.input_float("rotation", &rot);
+
+    imgui_struct("rotation", rot);
   });
 }
 
-rot : f32 = 0.0;
+rot : f64 = 0.0;
 
 // -----------
 //    /Test
@@ -112,7 +116,7 @@ main :: proc() {
     render_add_draw_cmd(&render_system, 50, 50, 64, 64, tex, 1);
     render_add_draw_cmd(&render_system, player_pos.x, player_pos.y, 32, 32, tex, 0);
 
-    render_add_texture(&render_system, 10, 10, tex, 0, rot);
+    render_add_texture(&render_system, 10, 10, tex, 0, f32(rot));
 
     uvs := [2]Vec2f { {0.0, 0.0}, {1.0, 1.0} };
     render_add_sprite(&render_system, 10, 10, 32, 32, tex, 0, uvs);

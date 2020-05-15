@@ -24,6 +24,7 @@ import "core:fmt";
 import "core:mem";
 import "core:math";
 import "core:strings";
+import "core:runtime";
 
 ///////////////////////// Odin UTIL /////////////////////////
 
@@ -73,7 +74,7 @@ foreign cimgui {
     // Main
     @(link_name = "igGetIO")             get_io        :: proc() -> ^IO ---;
     @(link_name = "igGetStyle")          get_style     :: proc() -> ^Style ---;
-    @(link_name = "igGetDrawData")       get_draw_data :: proc() -> ^DrawData ---;
+    @(link_name = "igGetDrawData")       get_draw_data :: proc() -> ^Draw_Data ---;
     @(link_name = "igNewFrame")          new_frame     :: proc() ---;
     @(link_name = "igRender")            render        :: proc() ---;
     @(link_name = "igShutdown")          shutdown      :: proc() ---;
@@ -108,7 +109,7 @@ foreign cimgui {
     @(link_name = "igGetWindowContentRegionMin")   im_get_window_content_region_min :: proc(out : ^Vec2) ---;
     @(link_name = "igGetWindowContentRegionMax")   im_get_window_content_region_max :: proc(out : ^Vec2) ---;
     @(link_name = "igGetWindowContentRegionWidth") get_window_content_region_width  :: proc() -> f32 ---;
-    @(link_name = "igGetWindowDrawList")           get_window_draw_list             :: proc() -> ^DrawList ---;
+    @(link_name = "igGetWindowDrawList")           get_window_draw_list             :: proc() -> ^Draw_List ---;
     @(link_name = "igGetWindowPos")                im_get_window_pos                :: proc(out : ^Vec2) ---;
     @(link_name = "igGetWindowSize")               im_get_window_size               :: proc(out : ^Vec2) ---;
     @(link_name = "igGetWindowWidth")              get_window_width                 :: proc() -> f32 ---;
@@ -137,11 +138,10 @@ foreign cimgui {
     @(link_name = "igSetNextWindowContentWidth")     set_next_window_content_width      :: proc (width : f32) ---;
     @(link_name = "igSetNextWindowCollapsed")        set_next_window_collapsed          :: proc (collapsed : bool, cond := Set_Cond(0)) ---;
     @(link_name = "igSetNextWindowFocus")            set_next_window_focus              :: proc () ---;
-    @(link_name = "igSetNextWindowBgAlpha")          set_next_window_bg_alpha           :: proc (alpha : f32) ---;
     @(link_name = "igSetWindowPos")                  set_window_pos_                    :: proc (pos : Vec2, cond := Set_Cond(0)) ---;
-    @(link_name = "igSetWindowSize")                 set_window_size_                    :: proc (size : Vec2, cond := Set_Cond(0)) ---;
-    @(link_name = "igSetWindowCollapsed")            set_window_collapsed_               :: proc (collapsed : bool, cond := Set_Cond(0)) ---;
-    @(link_name = "igSetWindowFocus")                set_window_focus_                   :: proc () ---;
+    @(link_name = "igSetWindowSize")                 set_window_size_                   :: proc (size : Vec2, cond := Set_Cond(0)) ---;
+    @(link_name = "igSetWindowCollapsed")            set_window_collapsed_              :: proc (collapsed : bool, cond := Set_Cond(0)) ---;
+    @(link_name = "igSetWindowFocus")                set_window_focus_                  :: proc () ---;
     @(link_name = "igSetWindowPosByName")            im_set_window_pos                  :: proc (name : cstring, pos : Vec2, cond := Set_Cond(0)) ---;
     @(link_name = "igSetWindowSize2")                im_set_window_size                 :: proc (name : cstring, size : Vec2, cond := Set_Cond(0)) ---;
     @(link_name = "igSetWindowCollapsed2")           im_set_window_collapsed            :: proc (name : cstring, collapsed : bool, cond := Set_Cond(0)) ---;
@@ -302,8 +302,8 @@ foreign cimgui {
     @(link_name = "igButton")          im_button             :: proc (label : cstring, size : Vec2) -> bool ---;
     @(link_name = "igSmallButton")     im_small_button       :: proc(label : cstring) -> bool ---;
     @(link_name = "igInvisibleButton") im_invisible_button   :: proc(str_id : cstring, size : Vec2) -> bool ---;
-    @(link_name = "igImage")           image                 :: proc(user_texture_id : TextureID, size : Vec2, uv0 : Vec2 = Vec2{0, 0}, uv1 : Vec2 = Vec2{1, 1}, tint_col : Vec4 = Vec4{1, 1, 1, 1}, border_col : Vec4 = Vec4{0, 0, 0, 0}) ---;
-    @(link_name = "igImageButton")     image_button          :: proc(user_texture_id : TextureID, size : Vec2, uv0 : Vec2 = Vec2{0, 0}, uv1 : Vec2 = Vec2{1, 1}, frame_padding : i32 = -1, bg_col : Vec4 = Vec4{0, 0, 0, 0}, tint_col : Vec4 = Vec4{1, 1, 1, 1}) -> bool ---;
+    @(link_name = "igImage")           image                 :: proc(user_texture_id : Texture_ID, size : Vec2, uv0 : Vec2 = Vec2{0, 0}, uv1 : Vec2 = Vec2{1, 1}, tint_col : Vec4 = Vec4{1, 1, 1, 1}, border_col : Vec4 = Vec4{0, 0, 0, 0}) ---;
+    @(link_name = "igImageButton")     image_button          :: proc(user_texture_id : Texture_ID, size : Vec2, uv0 : Vec2 = Vec2{0, 0}, uv1 : Vec2 = Vec2{1, 1}, frame_padding : i32 = -1, bg_col : Vec4 = Vec4{0, 0, 0, 0}, tint_col : Vec4 = Vec4{1, 1, 1, 1}) -> bool ---;
     @(link_name = "igCheckbox")        im_checkbox           :: proc(label : cstring, v : ^bool) -> bool ---;
     @(link_name = "igCheckboxFlags")   im_checkbox_flags     :: proc(label : cstring, flags : ^u32, flags_value : u32) -> bool ---;
     @(link_name = "igRadioButtonBool") im_radio_buttons_bool :: proc(label : cstring, active : bool) -> bool ---;
@@ -354,6 +354,52 @@ drag_int_range :: proc(label : string, v_current_min, v_current_max : ^i32, v_sp
     return im_drag_int_range(id, v_current_min, v_current_max, v_speed, v_min, v_max, df, mdf);
 }
 
+_scalar_get_data_type :: proc(data: ^$T) -> Data_Type {
+  type_info := type_info_of(typeid_of(type_of(data^)));
+
+  #partial switch kind in type_info.variant {
+    case runtime.Type_Info_Integer:
+      if kind.signed {
+        switch type_info.size {
+          case 1: return  Data_Type.S8;
+          case 2: return  Data_Type.S16;
+          case 4: return  Data_Type.S32;
+          case 8: return  Data_Type.S64;
+        }
+      } else {
+        switch type_info.size {
+          case 1: return Data_Type.U8;
+          case 2: return Data_Type.U16;
+          case 4: return Data_Type.U32;
+          case 8: return Data_Type.U64;
+        }
+      }
+
+    case runtime.Type_Info_Float:
+      switch type_info.size {
+        case 4: return Data_Type.Float;
+        case 8: return Data_Type.Double;
+      }
+  }
+
+  // @Incomplete(naum): fail
+  return Data_Type.S32;
+}
+
+drag_scalar_simple :: proc(label : string, data : ^$T, speed : f32 = 1.0, display_format : string = "\x00", power : f32 = 1.0) -> bool {
+  data_type := _scalar_get_data_type(data);
+  return im_drag_scalar(_make_label_string(label), data_type, cast(rawptr)data, speed, nil, nil, _make_display_fmt_string(display_format), power);
+}
+
+drag_scalar_minmax :: proc(label : string, data : ^$T, speed : f32, min, max : T, display_format : string = "\x00", power : f32 = 1.0) -> bool {
+  data_type := _scalar_get_data_type(data);
+  min, max := min, max;
+  p_min, p_max := &min, &max;
+  return im_drag_scalar(_make_label_string(label), data_type, cast(rawptr)data, speed, p_min, p_max, _make_display_fmt_string(display_format), power);
+}
+
+drag_scalar :: proc{ drag_scalar_simple, drag_scalar_minmax };
+
 @(default_calling_convention="c")
 foreign cimgui {
     @(link_name = "igDragFloat")       im_drag_float       :: proc(label : cstring, v : ^f32, v_speed : f32, v_min : f32, v_max : f32, display_format : cstring, power : f32) ---;
@@ -366,6 +412,7 @@ foreign cimgui {
     @(link_name = "igDragInt3")        im_drag_int3        :: proc(label : cstring, v : ^i32, v_speed : f32, v_min : i32, v_max : i32, display_format : cstring) ---;
     @(link_name = "igDragInt4")        im_drag_int4        :: proc(label : cstring, v : ^i32, v_speed : f32, v_min : i32, v_max : i32, display_format : cstring) ---;
     @(link_name = "igDragIntRange2")   im_drag_int_range   :: proc(label : cstring, v_current_min, v_current_max : ^i32, v_speed, v_min, v_max : i32, display_format, display_format_max : cstring) -> bool ---;
+    @(link_name = "igDragScalar")      im_drag_scalar      :: proc(label : cstring, data_type : Data_Type, p_data : rawptr, v_speed : f32, p_min, p_max : rawptr, display_format : cstring, power : f32) -> bool ---;
 }
 
 // Widgets: Input with Keyboard
@@ -645,8 +692,8 @@ foreign cimgui {
     @(link_name = "igIsPosHoveringAnyWindow")           is_pos_hovering_any_window             :: proc (pos : Vec2) -> bool ---;
     @(link_name = "igGetTime")                          get_time                               :: proc () -> f32 ---;
     @(link_name = "igGetFrameCount")                    get_frame_count                        :: proc () -> i32 ---;
-    @(link_name = "igGetOverlayDrawList")               get_overlay_draw_list                  :: proc () -> ^DrawList ---;
-    //@(link_name = "igGetDrawListSharedData")          get_draw_list_shared_data            :: proc () -> ^DrawListSharedData ---; NOTE(Hoej): Missing struct definiton.
+    @(link_name = "igGetOverlayDrawList")               get_overlay_draw_list                  :: proc () -> ^Draw_List ---;
+    //@(link_name = "igGetDrawListSharedData")          get_draw_list_shared_data            :: proc () -> ^Draw_ListSharedData ---; NOTE(Hoej): Missing struct definiton.
     @(link_name = "igGetStyleColName")                  get_style_col_name                     :: proc (idx : Color) -> cstring ---;
     @(link_name = "igCalcItemRectClosestPoint")         calc_item_rect_closest_point           :: proc (pOut : ^Vec2, pos : Vec2 , on_edge : bool, outward : f32 = 0) ---;
     @(link_name = "igCalcTextSize")                     calc_text_size                         :: proc (pOut : ^Vec2, text : cstring, text_end : cstring, hide_text_after_double_hash : bool, wrap_width : f32 = -1) ---;
@@ -671,6 +718,7 @@ foreign cimgui {
     @(link_name = "igIsMouseReleased")                  is_mouse_released                      :: proc (button : i32) -> bool ---;
     @(link_name = "igIsMouseDragging")                  is_mouse_dragging                      :: proc (button : i32 = 0, lock_threshold : f32 = -1) -> bool ---;
     @(link_name = "igIsMouseHoveringRect")              is_mouse_hovering_rect                 :: proc (r_min : Vec2, r_max : Vec2, clip : bool = true) -> bool ---;
+    @(link_name = "igIsAnyMouseDown")                   is_any_mouse_down                      :: proc () -> bool ---;
     @(link_name = "igGetMousePos")                      get_mouse_pos                          :: proc (pOut : ^Vec2) ---;
     @(link_name = "igGetMousePosOnOpeningCurrentPopup") get_mouse_pos_on_opening_current_popup :: proc (pOut : ^Vec2) ---;
     @(link_name = "igGetMouseDragDelta")                get_mouse_drag_delta                   :: proc (pOut : ^Vec2, button : i32 = 0, lock_threshold : f32 = -1) ---;
@@ -694,43 +742,43 @@ foreign cimgui {
 
 // Internal state access - if you want to share ImGui state between modules (e.g. DLL) or allocate it yourself
     @(link_name = "igGetVersion")        get_version           :: proc() -> cstring ---;
-    @(link_name = "igCreateContext")     create_context        :: proc(shared : ^FontAtlas = nil) -> ^Context ---;
+    @(link_name = "igCreateContext")     create_context        :: proc(shared : ^Font_Atlas = nil) -> ^Context ---;
     @(link_name = "igDestroyContext")    destroy_context       :: proc(ctx : ^Context) ---;
     @(link_name = "igGetCurrentContext") get_current_context   :: proc() -> ^Context ---;
     @(link_name = "igSetCurrentContext") set_current_context   :: proc(ctx : ^Context) ---;
 
 ///// Misc
-    @(link_name = "ImFontConfig_DefaultConstructor") font_config_default_constructor  :: proc(config : ^FontConfig) ---;
+    @(link_name = "ImFontConfig_DefaultConstructor") font_config_default_constructor  :: proc(config : ^Font_Config) ---;
     @(link_name = "ImGuiIO_AddInputCharacter")       io_add_input_character           :: proc(self : ^IO, c : Wchar) ---;
     @(link_name = "ImGuiIO_AddInputCharactersUTF8")  io_add_input_characters_utf8     :: proc(self : ^IO, utf8_chars : ^u8) ---;
     @(link_name = "ImGuiIO_ClearInputCharacters")    io_clear_input_characters        :: proc(self : ^IO, ) ---;
 
-///// TextFilter
-    @(link_name = "igImGuiTextFilter_Create")      text_filter_create        :: proc(default_filter : cstring = "\x00") -> ^TextFilter ---;
-    @(link_name = "igImGuiTextFilter_Destroy")     text_filter_destroy       :: proc(filter : ^TextFilter) ---;
-    @(link_name = "igImGuiTextFilter_Clear")       text_filter_clear         :: proc(filter : ^TextFilter) ---;
-    @(link_name = "igImGuiTextFilter_Draw")        text_filter_draw          :: proc(filter : ^TextFilter, label : cstring, width : f32) -> bool ---;
-    @(link_name = "igImGuiTextFilter_PassFilter")  text_filter_pass_filter   :: proc(filter : ^TextFilter, text : cstring, text_end : cstring) -> bool ---;
-    @(link_name = "igImGuiTextFilter_IsActive")    text_filter_is_active     :: proc(filter : ^TextFilter) -> bool ---;
-    @(link_name = "igImGuiTextFilter_Build")       text_filter_build         :: proc(filter : ^TextFilter) ---;
-    @(link_name = "igImGuiTextFilter_GetInputBuf") text_filter_get_input_buf :: proc(filter : ^TextFilter) -> cstring ---;
+///// Text_Filter
+    @(link_name = "igImGuiTextFilter_Create")      text_filter_create        :: proc(default_filter : cstring = "\x00") -> ^Text_Filter ---;
+    @(link_name = "igImGuiTextFilter_Destroy")     text_filter_destroy       :: proc(filter : ^Text_Filter) ---;
+    @(link_name = "igImGuiTextFilter_Clear")       text_filter_clear         :: proc(filter : ^Text_Filter) ---;
+    @(link_name = "igImGuiTextFilter_Draw")        text_filter_draw          :: proc(filter : ^Text_Filter, label : cstring, width : f32) -> bool ---;
+    @(link_name = "igImGuiTextFilter_PassFilter")  text_filter_pass_filter   :: proc(filter : ^Text_Filter, text : cstring, text_end : cstring) -> bool ---;
+    @(link_name = "igImGuiTextFilter_IsActive")    text_filter_is_active     :: proc(filter : ^Text_Filter) -> bool ---;
+    @(link_name = "igImGuiTextFilter_Build")       text_filter_build         :: proc(filter : ^Text_Filter) ---;
+    @(link_name = "igImGuiTextFilter_GetInputBuf") text_filter_get_input_buf :: proc(filter : ^Text_Filter) -> cstring ---;
 }
 
-text_buffer_append :: proc(buffer : ^TextBuffer, fmt_ : string, args : ..any) { im_text_buffer_append(buffer, _make_text_string(fmt_, ..args)); }
+text_buffer_append :: proc(buffer : ^Text_Buffer, fmt_ : string, args : ..any) { im_text_buffer_append(buffer, _make_text_string(fmt_, ..args)); }
 
 @(default_calling_convention="c")
 foreign cimgui {
-///// TextBuffer
-    @(link_name = "ImGuiTextBuffer_Create")  text_buffer_create    :: proc() -> ^TextBuffer ---;
-    @(link_name = "ImGuiTextBuffer_Destroy") text_buffer_destroy   :: proc(buffer : ^TextBuffer) ---;
-    @(link_name = "ImGuiTextBuffer_index")   text_buffer_index     :: proc(buffer : ^TextBuffer, i : i32) -> u8 ---;
-    @(link_name = "ImGuiTextBuffer_begin")   text_buffer_begin     :: proc(buffer : ^TextBuffer) -> ^u8 ---;
-    @(link_name = "ImGuiTextBuffer_end")     text_buffer_end       :: proc(buffer : ^TextBuffer) -> ^u8 ---;
-    @(link_name = "ImGuiTextBuffer_size")    text_buffer_size      :: proc(buffer : ^TextBuffer) -> i32 ---;
-    @(link_name = "ImGuiTextBuffer_empty")   text_buffer_empty     :: proc(buffer : ^TextBuffer) -> bool ---;
-    @(link_name = "ImGuiTextBuffer_clear")   text_buffer_clear     :: proc(buffer : ^TextBuffer) ---;
-    @(link_name = "ImGuiTextBuffer_c_str")   text_buffer_c_str     :: proc(buffer : ^TextBuffer) -> cstring ---;
-    @(link_name = "ImGuiTextBuffer_append")  im_text_buffer_append :: proc(buffer : ^TextBuffer, fmt_ : cstring) ---;
+///// Text_Buffer
+    @(link_name = "ImGuiTextBuffer_Create")  text_buffer_create    :: proc() -> ^Text_Buffer ---;
+    @(link_name = "ImGuiTextBuffer_Destroy") text_buffer_destroy   :: proc(buffer : ^Text_Buffer) ---;
+    @(link_name = "ImGuiTextBuffer_index")   text_buffer_index     :: proc(buffer : ^Text_Buffer, i : i32) -> u8 ---;
+    @(link_name = "ImGuiTextBuffer_begin")   text_buffer_begin     :: proc(buffer : ^Text_Buffer) -> ^u8 ---;
+    @(link_name = "ImGuiTextBuffer_end")     text_buffer_end       :: proc(buffer : ^Text_Buffer) -> ^u8 ---;
+    @(link_name = "ImGuiTextBuffer_size")    text_buffer_size      :: proc(buffer : ^Text_Buffer) -> i32 ---;
+    @(link_name = "ImGuiTextBuffer_empty")   text_buffer_empty     :: proc(buffer : ^Text_Buffer) -> bool ---;
+    @(link_name = "ImGuiTextBuffer_clear")   text_buffer_clear     :: proc(buffer : ^Text_Buffer) ---;
+    @(link_name = "ImGuiTextBuffer_c_str")   text_buffer_c_str     :: proc(buffer : ^Text_Buffer) -> cstring ---;
+    @(link_name = "ImGuiTextBuffer_append")  im_text_buffer_append :: proc(buffer : ^Text_Buffer, fmt_ : cstring) ---;
 
 ///// ImGuiStorage
     @(link_name = "ImGuiStorage_Create")        storage_create           :: proc() -> ^Storage ---;
@@ -751,92 +799,92 @@ foreign cimgui {
 
 ///// TextEditCallbackData TODO
 
-///// ListClipper
-    @(link_name = "ImGuiListClipper_Step")            list_clipper_step              :: proc (clipper : ^ListClipper) -> bool ---;
-    @(link_name = "ImGuiListClipper_Begin")           list_clipper_begin             :: proc (clipper : ^ListClipper, count : i32, items_height : f32 = -1) ---;
-    @(link_name = "ImGuiListClipper_End")             list_clipper_end               :: proc (clipper : ^ListClipper) ---;
+///// List_Clipper
+    @(link_name = "ImGuiListClipper_Step")            list_clipper_step              :: proc (clipper : ^List_Clipper) -> bool ---;
+    @(link_name = "ImGuiListClipper_Begin")           list_clipper_begin             :: proc (clipper : ^List_Clipper, count : i32, items_height : f32 = -1) ---;
+    @(link_name = "ImGuiListClipper_End")             list_clipper_end               :: proc (clipper : ^List_Clipper) ---;
 }
 
 ///// FontAtlas
-font_atlas_add_font_from_file_ttf :: proc(atlas : ^FontAtlas, filename : string, size_pixels : f32, font_cfg : ^FontConfig = nil, glyph_ranges : []Wchar = nil) -> ^Font { return im_font_atlas_add_font_from_file_ttf(atlas, _make_misc_string(filename), size_pixels, font_cfg, glyph_ranges == nil ? nil : &glyph_ranges[0]); }
+font_atlas_add_font_from_file_ttf :: proc(atlas : ^Font_Atlas, filename : string, size_pixels : f32, font_cfg : ^Font_Config = nil, glyph_ranges : []Wchar = nil) -> ^Font { return im_font_atlas_add_font_from_file_ttf(atlas, _make_misc_string(filename), size_pixels, font_cfg, glyph_ranges == nil ? nil : &glyph_ranges[0]); }
 foreign cimgui {
-    @(link_name = "ImFontAtlas_GetTexDataAsRGBA32")                   font_atlas_get_text_data_as_rgba32                    :: proc(atlas : ^FontAtlas, out_pixels : ^^u8, out_width : ^i32, out_height : ^i32, out_bytes_per_pixel : ^i32 = nil) ---;
-    @(link_name = "ImFontAtlas_GetTexDataAsAlpha8")                   font_atlas_get_text_data_as_alpha8                    :: proc(atlas : ^FontAtlas, out_pixels : ^^u8, out_width : ^i32, out_height : ^i32, out_bytes_per_pixel : ^i32 = nil) ---;
-    @(link_name = "ImFontAtlas_SetTexID")                             font_atlas_set_text_id                                :: proc(atlas : ^FontAtlas, tex : rawptr) ---;
-    @(link_name = "ImFontAtlas_AddFont")                              font_atlas_add_font_                                  :: proc(atlas : ^FontAtlas, font_cfg : ^FontConfig ) -> ^Font ---;
-    @(link_name = "ImFontAtlas_AddFontDefault")                       font_atlas_add_font_default                           :: proc(atlas : ^FontAtlas, font_cfg : ^FontConfig ) -> ^Font ---;
-    @(link_name = "ImFontAtlas_AddFontFromFileTTF")                   im_font_atlas_add_font_from_file_ttf                  :: proc(atlas : ^FontAtlas, filename : cstring, size_pixels : f32, font_cfg : ^FontConfig, glyph_ranges : ^Wchar) -> ^Font  ---;
-    @(link_name = "ImFontAtlas_AddFontFromMemoryTTF")                 font_atlas_add_font_from_memory_ttf                   :: proc(atlas : ^FontAtlas, ttf_data : rawptr, ttf_size : i32, size_pixels : f32, font_cfg : ^FontConfig = nil, glyph_ranges : ^Wchar = nil) -> ^Font ---;
-    @(link_name = "ImFontAtlas_AddFontFromMemoryCompressedTTF")       font_atlas_add_font_from_memory_compressed_ttf        :: proc(atlas : ^FontAtlas, compressed_ttf_data : rawptr, compressed_ttf_size : i32, size_pixels : f32, font_cfg : ^FontConfig, glyph_ranges : ^Wchar) -> ^Font ---;
-    @(link_name = "ImFontAtlas_AddFontFromMemoryCompressedBase85TTF") font_atlas_add_font_from_memory_compressed_base85_ttf :: proc(atlas : ^FontAtlas, compressed_ttf_data_base85 : cstring, size_pixels : f32, font_cfg : ^FontConfig, glyph_ranges : ^Wchar) -> ^Font ---;
-    @(link_name = "ImFontAtlas_ClearTexData")                         font_atlas_clear_tex_data                             :: proc(atlas : ^FontAtlas) ---;
-    @(link_name = "ImFontAtlas_Clear")                                font_atlas_clear                                      :: proc(atlas : ^FontAtlas) ---;
+    @(link_name = "ImFontAtlas_GetTexDataAsRGBA32")                   font_atlas_get_text_data_as_rgba32                    :: proc(atlas : ^Font_Atlas, out_pixels : ^^u8, out_width : ^i32, out_height : ^i32, out_bytes_per_pixel : ^i32 = nil) ---;
+    @(link_name = "ImFontAtlas_GetTexDataAsAlpha8")                   font_atlas_get_text_data_as_alpha8                    :: proc(atlas : ^Font_Atlas, out_pixels : ^^u8, out_width : ^i32, out_height : ^i32, out_bytes_per_pixel : ^i32 = nil) ---;
+    @(link_name = "ImFontAtlas_SetTexID")                             font_atlas_set_text_id                                :: proc(atlas : ^Font_Atlas, tex : rawptr) ---;
+    @(link_name = "ImFontAtlas_AddFont")                              font_atlas_add_font_                                  :: proc(atlas : ^Font_Atlas, font_cfg : ^Font_Config ) -> ^Font ---;
+    @(link_name = "ImFontAtlas_AddFontDefault")                       font_atlas_add_font_default                           :: proc(atlas : ^Font_Atlas, font_cfg : ^Font_Config ) -> ^Font ---;
+    @(link_name = "ImFontAtlas_AddFontFromFileTTF")                   im_font_atlas_add_font_from_file_ttf                  :: proc(atlas : ^Font_Atlas, filename : cstring, size_pixels : f32, font_cfg : ^Font_Config, glyph_ranges : ^Wchar) -> ^Font  ---;
+    @(link_name = "ImFontAtlas_AddFontFromMemoryTTF")                 font_atlas_add_font_from_memory_ttf                   :: proc(atlas : ^Font_Atlas, ttf_data : rawptr, ttf_size : i32, size_pixels : f32, font_cfg : ^Font_Config = nil, glyph_ranges : ^Wchar = nil) -> ^Font ---;
+    @(link_name = "ImFontAtlas_AddFontFromMemoryCompressedTTF")       font_atlas_add_font_from_memory_compressed_ttf        :: proc(atlas : ^Font_Atlas, compressed_ttf_data : rawptr, compressed_ttf_size : i32, size_pixels : f32, font_cfg : ^Font_Config, glyph_ranges : ^Wchar) -> ^Font ---;
+    @(link_name = "ImFontAtlas_AddFontFromMemoryCompressedBase85TTF") font_atlas_add_font_from_memory_compressed_base85_ttf :: proc(atlas : ^Font_Atlas, compressed_ttf_data_base85 : cstring, size_pixels : f32, font_cfg : ^Font_Config, glyph_ranges : ^Wchar) -> ^Font ---;
+    @(link_name = "ImFontAtlas_ClearTexData")                         font_atlas_clear_tex_data                             :: proc(atlas : ^Font_Atlas) ---;
+    @(link_name = "ImFontAtlas_Clear")                                font_atlas_clear                                      :: proc(atlas : ^Font_Atlas) ---;
 }
 ///// DrawList
 @(default_calling_convention="c")
 foreign cimgui {
-    @(link_name = "ImDrawData_ScaleClipRects")           draw_data_scale_clip_rects             :: proc(self : ^DrawData, sc : Vec2) ---;
+    @(link_name = "ImDrawData_ScaleClipRects")           draw_data_scale_clip_rects             :: proc(self : ^Draw_Data, sc : Vec2) ---;
 
-    @(link_name = "ImDrawList_Clear")                    draw_list_clear                        :: proc(list : ^DrawList) ---;
-    @(link_name = "ImDrawList_ClearFreeMemory")          draw_list_clear_free_memory            :: proc(list : ^DrawList) ---;
-    @(link_name = "ImDrawList_PushClipRect")             draw_list_push_clip_rect               :: proc(list : ^DrawList, clip_rect_min : Vec2, clip_rect_max : Vec2, intersect_with_current_clip_rect : bool) ---;
-    @(link_name = "ImDrawList_PushClipRectFullScreen")   draw_list_push_clip_rect_full_screen   :: proc(list : ^DrawList) ---;
-    @(link_name = "ImDrawList_PopClipRect")              draw_list_pop_clip_rect                :: proc(list : ^DrawList) ---;
-    @(link_name = "ImDrawList_PushTextureID")            draw_list_push_texture_id              :: proc(list : ^DrawList, texture_id : TextureID) ---;
-    @(link_name = "ImDrawList_PopTextureID")             draw_list_pop_texture_id               :: proc(list : ^DrawList) ---;
+    @(link_name = "ImDrawList_Clear")                    draw_list_clear                        :: proc(list : ^Draw_List) ---;
+    @(link_name = "ImDrawList_ClearFreeMemory")          draw_list_clear_free_memory            :: proc(list : ^Draw_List) ---;
+    @(link_name = "ImDrawList_PushClipRect")             draw_list_push_clip_rect               :: proc(list : ^Draw_List, clip_rect_min : Vec2, clip_rect_max : Vec2, intersect_with_current_clip_rect : bool) ---;
+    @(link_name = "ImDrawList_PushClipRectFullScreen")   draw_list_push_clip_rect_full_screen   :: proc(list : ^Draw_List) ---;
+    @(link_name = "ImDrawList_PopClipRect")              draw_list_pop_clip_rect                :: proc(list : ^Draw_List) ---;
+    @(link_name = "ImDrawList_PushTextureID")            draw_list_push_texture_id              :: proc(list : ^Draw_List, texture_id : Texture_ID) ---;
+    @(link_name = "ImDrawList_PopTextureID")             draw_list_pop_texture_id               :: proc(list : ^Draw_List) ---;
 
 ///// Primitives
-    @(link_name = "ImDrawList_AddLine")                  draw_list_add_line                     :: proc(list : ^DrawList, a : Vec2, b : Vec2, col : u32, thickness : f32) ---;
-    @(link_name = "ImDrawList_AddRect")                  draw_list_add_rect                     :: proc(list : ^DrawList, a : Vec2, b : Vec2, col : u32, rounding : f32, rounding_corners : i32, thickness : f32) ---;
-    @(link_name = "ImDrawList_AddRectFilled")            draw_list_add_rect_filled              :: proc(list : ^DrawList, a : Vec2, b : Vec2, col : u32, rounding : f32, rounding_corners : i32) ---;
-    @(link_name = "ImDrawList_AddRectFilledMultiColor")  draw_list_add_rect_filled_multi_color  :: proc(list : ^DrawList, a : Vec2, b : Vec2, col_upr_left : u32, col_upr_right : u32, col_bot_right : u32, col_bot_left : u32) ---;
-    @(link_name = "ImDrawList_AddQuad")                  draw_list_add_quad                     :: proc(list : ^DrawList, a : Vec2, b : Vec2, c : Vec2, d : Vec2, col : u32, thickness : f32) ---;
-    @(link_name = "ImDrawList_AddQuadFilled")            draw_list_add_quad_filled              :: proc(list : ^DrawList, a : Vec2, b : Vec2, c : Vec2, d : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_AddTriangle")              draw_list_add_triangle                 :: proc(list : ^DrawList, a : Vec2, b : Vec2, c : Vec2, col : u32, thickness : f32) ---;
-    @(link_name = "ImDrawList_AddTriangleFilled")        draw_list_add_triangle_filled          :: proc(list : ^DrawList, a : Vec2, b : Vec2, c : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_AddCircle")                draw_list_add_circle                   :: proc(list : ^DrawList, centre : Vec2, radius : f32, col : u32, num_segments : i32, thickness : f32) ---;
-    @(link_name = "ImDrawList_AddCircleFilled")          draw_list_add_circle_filled            :: proc(list : ^DrawList, centre : Vec2, radius : f32, col : u32, num_segments : i32) ---;
+    @(link_name = "ImDrawList_AddLine")                  draw_list_add_line                     :: proc(list : ^Draw_List, a : Vec2, b : Vec2, col : u32, thickness : f32) ---;
+    @(link_name = "ImDrawList_AddRect")                  draw_list_add_rect                     :: proc(list : ^Draw_List, a : Vec2, b : Vec2, col : u32, rounding : f32, rounding_corners : i32, thickness : f32) ---;
+    @(link_name = "ImDrawList_AddRectFilled")            draw_list_add_rect_filled              :: proc(list : ^Draw_List, a : Vec2, b : Vec2, col : u32, rounding : f32, rounding_corners : i32) ---;
+    @(link_name = "ImDrawList_AddRectFilledMultiColor")  draw_list_add_rect_filled_multi_color  :: proc(list : ^Draw_List, a : Vec2, b : Vec2, col_upr_left : u32, col_upr_right : u32, col_bot_right : u32, col_bot_left : u32) ---;
+    @(link_name = "ImDrawList_AddQuad")                  draw_list_add_quad                     :: proc(list : ^Draw_List, a : Vec2, b : Vec2, c : Vec2, d : Vec2, col : u32, thickness : f32) ---;
+    @(link_name = "ImDrawList_AddQuadFilled")            draw_list_add_quad_filled              :: proc(list : ^Draw_List, a : Vec2, b : Vec2, c : Vec2, d : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_AddTriangle")              draw_list_add_triangle                 :: proc(list : ^Draw_List, a : Vec2, b : Vec2, c : Vec2, col : u32, thickness : f32) ---;
+    @(link_name = "ImDrawList_AddTriangleFilled")        draw_list_add_triangle_filled          :: proc(list : ^Draw_List, a : Vec2, b : Vec2, c : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_AddCircle")                draw_list_add_circle                   :: proc(list : ^Draw_List, centre : Vec2, radius : f32, col : u32, num_segments : i32, thickness : f32) ---;
+    @(link_name = "ImDrawList_AddCircleFilled")          draw_list_add_circle_filled            :: proc(list : ^Draw_List, centre : Vec2, radius : f32, col : u32, num_segments : i32) ---;
 
 
-    @(link_name = "ImDrawList_AddText")                  draw_list_add_text                     :: proc(list : ^DrawList, pos : Vec2, col : u32, text_begin : cstring, text_end : cstring) ---;
-    @(link_name = "ImDrawList_AddTextExt")               draw_list_add_text_ext                 :: proc(list : ^DrawList, font : ^Font, font_size : f32, pos : Vec2, col : u32, text_begin : cstring, text_end : cstring, wrap_width : f32, cpu_fine_clip_rect : ^Vec4) ---;
+    @(link_name = "ImDrawList_AddText")                  draw_list_add_text                     :: proc(list : ^Draw_List, pos : Vec2, col : u32, text_begin : cstring, text_end : cstring) ---;
+    @(link_name = "ImDrawList_AddTextExt")               draw_list_add_text_ext                 :: proc(list : ^Draw_List, font : ^Font, font_size : f32, pos : Vec2, col : u32, text_begin : cstring, text_end : cstring, wrap_width : f32, cpu_fine_clip_rect : ^Vec4) ---;
 
-    @(link_name = "ImDrawList_AddImage")                 draw_list_add_image                    :: proc(list : ^DrawList, user_texture_id : TextureID, a : Vec2, b : Vec2, uv0 : Vec2, uv1 : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_AddImageQuad")             draw_list_add_image_quad               :: proc(list : ^DrawList, user_texture_id : TextureID, a : Vec2, b : Vec2, c : Vec2, d : Vec2, uv_a : Vec2, uv_b : Vec2, uv_c : Vec2, uv_d : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_AddImageRounded")          draw_list_add_image_rounded            :: proc(list : ^DrawList, user_texture_id : TextureID, a : Vec2, b : Vec2, uv_a : Vec2, uv_b : Vec2, col : u32, rounding : f32, rounding_corners : i32) ---;
-    @(link_name = "ImDrawList_AddPolyline")              draw_list_add_poly_line                :: proc(list : ^DrawList, points : ^Vec2, num_points : i32, col : u32, closed : bool, thickness : f32) ---;
-    @(link_name = "ImDrawList_AddConvexPolyFilled")      draw_list_add_convex_poly_filled       :: proc(list : ^DrawList, points : ^Vec2, num_points : i32, col : u32) ---;
-    @(link_name = "ImDrawList_AddBezierCurve")           draw_list_add_bezier_curve             :: proc(list : ^DrawList, pos0 : Vec2, cp0 : Vec2, cp1 : Vec2, pos1 : Vec2, col : u32, thickness : f32, num_segments : i32) ---;
+    @(link_name = "ImDrawList_AddImage")                 draw_list_add_image                    :: proc(list : ^Draw_List, user_texture_id : Texture_ID, a : Vec2, b : Vec2, uv0 : Vec2, uv1 : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_AddImageQuad")             draw_list_add_image_quad               :: proc(list : ^Draw_List, user_texture_id : Texture_ID, a : Vec2, b : Vec2, c : Vec2, d : Vec2, uv_a : Vec2, uv_b : Vec2, uv_c : Vec2, uv_d : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_AddImageRounded")          draw_list_add_image_rounded            :: proc(list : ^Draw_List, user_texture_id : Texture_ID, a : Vec2, b : Vec2, uv_a : Vec2, uv_b : Vec2, col : u32, rounding : f32, rounding_corners : i32) ---;
+    @(link_name = "ImDrawList_AddPolyline")              draw_list_add_poly_line                :: proc(list : ^Draw_List, points : ^Vec2, num_points : i32, col : u32, closed : bool, thickness : f32) ---;
+    @(link_name = "ImDrawList_AddConvexPolyFilled")      draw_list_add_convex_poly_filled       :: proc(list : ^Draw_List, points : ^Vec2, num_points : i32, col : u32) ---;
+    @(link_name = "ImDrawList_AddBezierCurve")           draw_list_add_bezier_curve             :: proc(list : ^Draw_List, pos0 : Vec2, cp0 : Vec2, cp1 : Vec2, pos1 : Vec2, col : u32, thickness : f32, num_segments : i32) ---;
 
 ///// Stateful path API, add points then finish with PathFill() or PathStroke()
-    @(link_name = "ImDrawList_PathClear")                draw_list_path_clear                   :: proc(list : ^DrawList) ---;
-    @(link_name = "ImDrawList_PathLineTo")               draw_list_path_line_to                 :: proc(list : ^DrawList, pos : Vec2) ---;
-    @(link_name = "ImDrawList_PathLineToMergeDuplicate") draw_list_path_line_to_merge_duplicate :: proc(list : ^DrawList, pos : Vec2) ---;
-    @(link_name = "ImDrawList_PathFill")                 draw_list_path_fill                    :: proc(list : ^DrawList, col : u32) ---;
-    @(link_name = "ImDrawList_PathStroke")               draw_list_path_stroke                  :: proc(list : ^DrawList, col : u32, closed : bool, thickness : f32) ---;
-    @(link_name = "ImDrawList_PathArcTo")                draw_list_path_arc_to                  :: proc(list : ^DrawList, centre : Vec2, radius : f32, a_min : f32, a_max : f32, num_segments : i32) ---;
-    @(link_name = "ImDrawList_PathArcToFast")            draw_list_path_arc_to_fast             :: proc(list : ^DrawList, centre : Vec2, radius : f32, a_min_of_12 : i32, a_max_of_12 : i32) ---; // Use precomputed angles for a 12 steps circle
-    @(link_name = "ImDrawList_PathBezierCurveTo")        draw_list_path_bezier_curve_to         :: proc(list : ^DrawList, p1 : Vec2, p2 : Vec2, p3 : Vec2, num_segments : i32) ---;
-    @(link_name = "ImDrawList_PathRect")                 draw_list_path_rect                    :: proc(list : ^DrawList, rect_min : Vec2, rect_max : Vec2, rounding : f32, rounding_corners : i32) ---;
+    @(link_name = "ImDrawList_PathClear")                draw_list_path_clear                   :: proc(list : ^Draw_List) ---;
+    @(link_name = "ImDrawList_PathLineTo")               draw_list_path_line_to                 :: proc(list : ^Draw_List, pos : Vec2) ---;
+    @(link_name = "ImDrawList_PathLineToMergeDuplicate") draw_list_path_line_to_merge_duplicate :: proc(list : ^Draw_List, pos : Vec2) ---;
+    @(link_name = "ImDrawList_PathFill")                 draw_list_path_fill                    :: proc(list : ^Draw_List, col : u32) ---;
+    @(link_name = "ImDrawList_PathStroke")               draw_list_path_stroke                  :: proc(list : ^Draw_List, col : u32, closed : bool, thickness : f32) ---;
+    @(link_name = "ImDrawList_PathArcTo")                draw_list_path_arc_to                  :: proc(list : ^Draw_List, centre : Vec2, radius : f32, a_min : f32, a_max : f32, num_segments : i32) ---;
+    @(link_name = "ImDrawList_PathArcToFast")            draw_list_path_arc_to_fast             :: proc(list : ^Draw_List, centre : Vec2, radius : f32, a_min_of_12 : i32, a_max_of_12 : i32) ---; // Use precomputed angles for a 12 steps circle
+    @(link_name = "ImDrawList_PathBezierCurveTo")        draw_list_path_bezier_curve_to         :: proc(list : ^Draw_List, p1 : Vec2, p2 : Vec2, p3 : Vec2, num_segments : i32) ---;
+    @(link_name = "ImDrawList_PathRect")                 draw_list_path_rect                    :: proc(list : ^Draw_List, rect_min : Vec2, rect_max : Vec2, rounding : f32, rounding_corners : i32) ---;
 
 ///// Channels
-    @(link_name = "ImDrawList_ChannelsSplit")            draw_list_channels_split               :: proc(list : ^DrawList, channels_count : i32) ---;
-    @(link_name = "ImDrawList_ChannelsMerge")            draw_list_channels_merge               :: proc(list : ^DrawList) ---;
-    @(link_name = "ImDrawList_ChannelsSetCurrent")       draw_list_channels_set_current         :: proc(list : ^DrawList, channel_index : i32) ---;
+    @(link_name = "ImDrawList_ChannelsSplit")            draw_list_channels_split               :: proc(list : ^Draw_List, channels_count : i32) ---;
+    @(link_name = "ImDrawList_ChannelsMerge")            draw_list_channels_merge               :: proc(list : ^Draw_List) ---;
+    @(link_name = "ImDrawList_ChannelsSetCurrent")       draw_list_channels_set_current         :: proc(list : ^Draw_List, channel_index : i32) ---;
 
 ///// Advanced
     // Your rendering function must check for 'UserCallback' in ImDrawCmd and call the function instead of rendering triangles.
-    @(link_name = "ImDrawList_AddCallback")              draw_list_add_callback                 :: proc(list : ^DrawList, callback : draw_callback, callback_data : rawptr) ---;
+    @(link_name = "ImDrawList_AddCallback")              draw_list_add_callback                 :: proc(list : ^Draw_List, callback : draw_callback, callback_data : rawptr) ---;
     // This is useful if you need to forcefully create a new draw call(to allow for dependent rendering / blending). Otherwise primitives are merged into the same draw-call as much as possible
-    @(link_name = "ImDrawList_AddDrawCmd")               draw_list_add_draw_cmd                 :: proc(list : ^DrawList) ---;
+    @(link_name = "ImDrawList_AddDrawCmd")               draw_list_add_draw_cmd                 :: proc(list : ^Draw_List) ---;
     // Internal helpers
-    @(link_name = "ImDrawList_PrimReserve")              draw_list_prim_reserve                 :: proc(list : ^DrawList, idx_count : i32, vtx_count : i32) ---;
-    @(link_name = "ImDrawList_PrimRect")                 draw_list_prim_rect                    :: proc(list : ^DrawList, a : Vec2, b : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_PrimRectUV")               draw_list_prim_rectuv                  :: proc(list : ^DrawList, a : Vec2, b : Vec2, uv_a : Vec2, uv_b : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_PrimQuadUV")               draw_list_prim_quaduv                  :: proc(list : ^DrawList,a : Vec2, b : Vec2, c : Vec2, d : Vec2, uv_a : Vec2, uv_b : Vec2, uv_c : Vec2, uv_d : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_PrimWriteVtx")             draw_list_prim_writevtx                :: proc(list : ^DrawList, pos : Vec2, uv : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_PrimWriteIdx")             draw_list_prim_writeidx                :: proc(list : ^DrawList, idx : DrawIdx) ---;
-    @(link_name = "ImDrawList_PrimVtx")                  draw_list_prim_vtx                     :: proc(list : ^DrawList, pos : Vec2, uv : Vec2, col : u32) ---;
-    @(link_name = "ImDrawList_UpdateClipRect")           draw_list_update_clip_rect             :: proc(list : ^DrawList) ---;
-    @(link_name = "ImDrawList_UpdateTextureID")          draw_list_update_texture_id            :: proc(list : ^DrawList) ---;
+    @(link_name = "ImDrawList_PrimReserve")              draw_list_prim_reserve                 :: proc(list : ^Draw_List, idx_count : i32, vtx_count : i32) ---;
+    @(link_name = "ImDrawList_PrimRect")                 draw_list_prim_rect                    :: proc(list : ^Draw_List, a : Vec2, b : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_PrimRectUV")               draw_list_prim_rectuv                  :: proc(list : ^Draw_List, a : Vec2, b : Vec2, uv_a : Vec2, uv_b : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_PrimQuadUV")               draw_list_prim_quaduv                  :: proc(list : ^Draw_List,a : Vec2, b : Vec2, c : Vec2, d : Vec2, uv_a : Vec2, uv_b : Vec2, uv_c : Vec2, uv_d : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_PrimWriteVtx")             draw_list_prim_writevtx                :: proc(list : ^Draw_List, pos : Vec2, uv : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_PrimWriteIdx")             draw_list_prim_writeidx                :: proc(list : ^Draw_List, idx : Draw_Idx) ---;
+    @(link_name = "ImDrawList_PrimVtx")                  draw_list_prim_vtx                     :: proc(list : ^Draw_List, pos : Vec2, uv : Vec2, col : u32) ---;
+    @(link_name = "ImDrawList_UpdateClipRect")           draw_list_update_clip_rect             :: proc(list : ^Draw_List) ---;
+    @(link_name = "ImDrawList_UpdateTextureID")          draw_list_update_texture_id            :: proc(list : ^Draw_List) ---;
 }
