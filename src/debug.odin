@@ -15,6 +15,11 @@ import "util"
 
 init_debug :: proc(render_system: ^Render_System, window: ^Window) {
   _init_imgui(render_system, window);
+
+  register_debug_program("ImGUI style", proc(_: rawptr) {
+    style := imgui.get_style();
+    imgui_struct("style", style^);
+  });
 }
 
 cleanup_debug :: proc() {
@@ -54,6 +59,7 @@ render_debug :: proc(render_system: ^Render_System, window: ^Window) {
 }
 
 // @Refactor(naum): create input system
+// @Incomplete(naum): use SDL IME system to be able to modify textually
 handle_debug_input :: proc(event: ^sdl.Event) -> bool {
   io := imgui.get_io();
 
@@ -115,9 +121,27 @@ imgui_struct :: proc(name: string, value: any) {
     //fmt.println("data: ", data);
     //fmt.println("type_info: ", type_info);
 
+    #partial
     switch kind in type_info.variant {
-      case runtime.Type_Info_Named: draw_value(name, data, kind.base, tags);
+      case runtime.Type_Info_Named:
+        if imgui.tree_node(fmt.tprint(name, " (", kind.name, ")")) {
+          draw_value(name, data, kind.base, tags);
+          imgui.tree_pop();
+        }
+
+      case runtime.Type_Info_Struct:
+        imgui.indent();
+        for name, ind in kind.names {
+          type   := kind.types[ind];
+          offset := kind.offsets[ind];
+
+          // @Incomplete(naum): add tags
+          draw_value(name, mem.ptr_offset(cast(^byte)data, cast(int)offset), type, nil);
+        }
+        imgui.unindent();
+
       case runtime.Type_Info_Integer:
+        // @XXX(naum): too ugly... We should be able to cast to typeid with reflection
         if kind.signed {
           switch type_info.size {
             case 8: new_data := cast(i64)(cast(^i64)data)^; imgui.drag_scalar(name, new_data); (cast(^i64)data)^ = cast(i64)new_data;
@@ -133,38 +157,35 @@ imgui_struct :: proc(name: string, value: any) {
             case 1: new_data := cast(u64)(cast(^u8 )data)^; imgui.drag_scalar(name, new_data); (cast(^u8 )data)^ = cast(u8 )new_data;
           }
         }
+
       case runtime.Type_Info_Float:
         switch type_info.size {
           case 8: new_data := cast(f64)(cast(^f64)data)^; imgui.drag_scalar(name, new_data); (cast(^f64)data)^ = cast(f64)new_data;
           case 4: new_data := cast(f64)(cast(^f32)data)^; imgui.drag_scalar(name, new_data); (cast(^f32)data)^ = cast(f32)new_data;
         }
 
+      case runtime.Type_Info_Boolean:
+        imgui.checkbox(name, cast(^bool)data);
+
+      case runtime.Type_Info_Pointer:
+        // @Incomplete(naum): maybe show what it's pointing to
+        ptr := (cast(^rawptr)data)^;
+        imgui.label_text(name, fmt.tprint(ptr));
+
+      case: imgui.text(fmt.tprint("(unhandled type: ", kind));
+      /*
       case runtime.Type_Info_Rune:             unimplemented();
       case runtime.Type_Info_Complex:          unimplemented();
       case runtime.Type_Info_Quaternion:       unimplemented();
       case runtime.Type_Info_String:           unimplemented();
-      case runtime.Type_Info_Boolean:          unimplemented();
       case runtime.Type_Info_Any:              unimplemented();
       case runtime.Type_Info_Type_Id:          unimplemented();
-      case runtime.Type_Info_Pointer:          unimplemented();
       case runtime.Type_Info_Procedure:        unimplemented();
       case runtime.Type_Info_Array:            unimplemented();
       case runtime.Type_Info_Enumerated_Array: unimplemented();
       case runtime.Type_Info_Dynamic_Array:    unimplemented();
       case runtime.Type_Info_Slice:            unimplemented();
       case runtime.Type_Info_Tuple:            unimplemented();
-
-      case runtime.Type_Info_Struct:
-        imgui.indent();
-        for name, ind in kind.names {
-          type   := kind.types[ind];
-          offset := kind.offsets[ind];
-
-          // @Incomplete(naum): add tags
-          draw_value(name, mem.ptr_offset(cast(^byte)data, cast(int)offset), type, nil);
-        }
-        imgui.unindent();
-
       case runtime.Type_Info_Union:            unimplemented();
       case runtime.Type_Info_Enum:             unimplemented();
       case runtime.Type_Info_Map:              unimplemented();
@@ -172,6 +193,7 @@ imgui_struct :: proc(name: string, value: any) {
       case runtime.Type_Info_Bit_Set:          unimplemented();
       case runtime.Type_Info_Opaque:           unimplemented();
       case runtime.Type_Info_Simd_Vector:      unimplemented();
+      */
     }
   };
 }
@@ -314,7 +336,7 @@ _init_imgui :: proc(render_system: ^Render_System, window: ^Window) {
   style.window_rounding = 0;
   style.child_rounding = 0;
   style.frame_rounding = 0;
-  style.indent_spacing = 20;
+  style.indent_spacing = 10;
   style.window_padding = imgui.Vec2{6, 6};
   style.frame_padding = imgui.Vec2{4 ,2};
   style.item_spacing = imgui.Vec2{8, 4};
@@ -328,29 +350,29 @@ _init_imgui :: proc(render_system: ^Render_System, window: ^Window) {
   style.window_title_align = imgui.Vec2{0.48, 0.5};
   style.button_text_align = imgui.Vec2{0.5, 0.5};
 
-  style.colors[imgui.Style_Color.Text]                  = imgui.Vec4{1.00, 1.00, 1.00, 1.00};
+  style.colors[imgui.Style_Color.Text]                   = imgui.Vec4{1.00, 1.00, 1.00, 1.00};
   style.colors[imgui.Style_Color.Text_Disabled]          = imgui.Vec4{0.63, 0.63, 0.63, 1.00};
   style.colors[imgui.Style_Color.Window_Bg]              = imgui.Vec4{0.23, 0.23, 0.23, 0.85};
   style.colors[imgui.Style_Color.Child_Bg]               = imgui.Vec4{0.20, 0.20, 0.20, 1.00};
   style.colors[imgui.Style_Color.Popup_Bg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.96};
-  style.colors[imgui.Style_Color.Border]                = imgui.Vec4{0.18, 0.18, 0.18, 0.98};
+  style.colors[imgui.Style_Color.Border]                 = imgui.Vec4{0.18, 0.18, 0.18, 0.98};
   style.colors[imgui.Style_Color.Border_Shadow]          = imgui.Vec4{0.00, 0.00, 0.00, 0.04};
   style.colors[imgui.Style_Color.Frame_Bg]               = imgui.Vec4{0.00, 0.00, 0.00, 0.29};
   style.colors[imgui.Style_Color.Title_Bg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.98};
-  style.colors[imgui.Style_Color.Title_Bg_Collapsed]      = imgui.Vec4{0.12, 0.12, 0.12, 0.49};
-  style.colors[imgui.Style_Color.Title_Bg_Active]         = imgui.Vec4{0.33, 0.33, 0.33, 0.98};
-  style.colors[imgui.Style_Color.Menu_Bar_Bg]             = imgui.Vec4{0.11, 0.11, 0.11, 0.42};
+  style.colors[imgui.Style_Color.Title_Bg_Collapsed]     = imgui.Vec4{0.12, 0.12, 0.12, 0.49};
+  style.colors[imgui.Style_Color.Title_Bg_Active]        = imgui.Vec4{0.33, 0.33, 0.33, 0.98};
+  style.colors[imgui.Style_Color.Menu_Bar_Bg]            = imgui.Vec4{0.11, 0.11, 0.11, 0.42};
   style.colors[imgui.Style_Color.Scrollbar_Bg]           = imgui.Vec4{0.00, 0.00, 0.00, 0.08};
   style.colors[imgui.Style_Color.Scrollbar_Grab]         = imgui.Vec4{0.27, 0.27, 0.27, 1.00};
-  style.colors[imgui.Style_Color.Scrollbar_Grab_Hovered]  = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
+  style.colors[imgui.Style_Color.Scrollbar_Grab_Hovered] = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
   style.colors[imgui.Style_Color.Check_Mark]             = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
   style.colors[imgui.Style_Color.Slider_Grab]            = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
-  style.colors[imgui.Style_Color.Button]                = imgui.Vec4{0.42, 0.42, 0.42, 0.60};
+  style.colors[imgui.Style_Color.Button]                 = imgui.Vec4{0.42, 0.42, 0.42, 0.60};
   style.colors[imgui.Style_Color.Button_Hovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
-  style.colors[imgui.Style_Color.Header]                = imgui.Vec4{0.31, 0.31, 0.31, 0.98};
+  style.colors[imgui.Style_Color.Header]                 = imgui.Vec4{0.31, 0.31, 0.31, 0.98};
   style.colors[imgui.Style_Color.Header_Hovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
   style.colors[imgui.Style_Color.Header_Active]          = imgui.Vec4{0.80, 0.50, 0.50, 1.00};
-  style.colors[imgui.Style_Color.Text_Selected_Bg]        = imgui.Vec4{0.65, 0.35, 0.35, 0.26};
+  style.colors[imgui.Style_Color.Text_Selected_Bg]       = imgui.Vec4{0.65, 0.35, 0.35, 0.26};
   // style.colors[imgui.Style_Color.Modal_Window_Dim_Bg]      = imgui.Vec4{0.20, 0.20, 0.20, 0.35};
 }
 

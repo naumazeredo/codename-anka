@@ -107,6 +107,12 @@ test_struct :: struct {
 
   v_f32 : f32,
   v_f64 : f64,
+
+  v_bool : bool,
+
+  v_ptr_nil : rawptr,
+  v_rawptr  : rawptr,
+  v_ptr     : ^f64,
 }
 
 ts := test_struct {
@@ -124,6 +130,12 @@ ts := test_struct {
 
   v_f32 = 3.1415,
   v_f64 = 3.14159265358979323846264338327950,
+
+  v_bool = true,
+
+  v_ptr_nil = nil,
+  v_rawptr  = cast(rawptr)&rot,
+  v_ptr     = &rot,
 };
 
 // -----------

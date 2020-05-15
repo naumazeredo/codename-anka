@@ -266,7 +266,7 @@ push_id :: proc{push_id_str, push_id_cstr_range, push_id_ptr, push_id_int, push_
 get_id :: proc{get_id_str, get_id_str_range, get_id_ptr};
 
 /////// Widgtes: Text
-text_unformatted :: proc (fmt_  : string)                                 { im_text_unformatted(_make_text_string(fmt_)); }
+text_unformatted :: proc (fmt_  : string)                                { im_text_unformatted(_make_text_string(fmt_)); }
 text             :: proc (fmt_  : string, args: ..any)                   { im_text_unformatted(_make_text_string(fmt_, ..args)); }
 text_colored     :: proc (col   : Vec4,   fmt_: string,  args: ..any)    { im_text_colored(col, _make_text_string(fmt_, ..args)); }
 text_disabled    :: proc (fmt_  : string, args: ..any)                   { im_text_disabled(_make_text_string(fmt_, ..args)); }
