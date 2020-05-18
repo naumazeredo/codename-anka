@@ -157,12 +157,16 @@ main :: proc() {
 
   test();
 
+  model_id := add_animation_model(&animation_system, tex, 2, [dynamic]Vec2f{ {16,32}, {16,32} }, [dynamic]f32{1.0,2.0});
+  add_animation_instance(&animation_system, model_id, &player_pos);
+
+  new_frame(&time_system);
   running := true;
   for running {
     if !handle_input() do break;
 
     render_add_draw_cmd(&render_system, 50, 50, 64, 64, tex, 1);
-    render_add_draw_cmd(&render_system, player_pos.x, player_pos.y, 32, 32, tex, 0);
+    //render_add_draw_cmd(&render_system, player_pos.x, player_pos.y, 32, 32, tex, 0);
 
     render_add_texture(&render_system, 10, 10, tex, 0, f32(rot));
 
@@ -170,7 +174,9 @@ main :: proc() {
     render_add_sprite(&render_system, 10, 10, 32, 32, tex, 0, uvs);
 
     resolve_collisions(&physics_system);
+    render_animations(&animation_system);
 
     render(&render_system, &window);
+    new_frame(&time_system);
   }
 }

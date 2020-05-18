@@ -231,7 +231,6 @@ render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: 
   append(&world_draw_cmds, draw_cmd);
 }
 
-// @Incomplete(luciano): 
 render_add_sprite :: proc(using render_system: ^Render_System, x,y,w,h: f32, tex: Texture_Id, layer:i32, uvs: [2]Vec2f) {
   draw_cmd := Draw_Command {
     program = current_program,
