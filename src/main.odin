@@ -89,6 +89,10 @@ test :: proc() {
   register_debug_program("test struct", proc(_: rawptr) {
     debug_add("test struct", ts);
   });
+
+  register_debug_program("animation", proc(_: rawptr) {
+    debug_add("animation system", animation_system);
+  });
 }
 
 rot : f64 = 0.0;
