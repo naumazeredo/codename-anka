@@ -112,6 +112,8 @@ imgui_struct :: proc(name: string, value: $T) {
   draw_value :: proc(name: string, data: ^$T, type_info: ^runtime.Type_Info, tags: map[string]any) {
     */
 
+// @Future(naum): create ids for all elements using it's memory address (to light up same elements)
+// @Refactor(naum): remove name
 imgui_struct :: proc(name: string, value: any) {
   type_info := type_info_of(value.id);
   draw_value(name, value.data, type_info, nil);
@@ -124,6 +126,7 @@ imgui_struct :: proc(name: string, value: any) {
     #partial
     switch kind in type_info.variant {
       case runtime.Type_Info_Named:
+        // @Refactor(naum): maybe change this to create header inside struct/array/etc
         if imgui.tree_node(fmt.tprint(name, " (", kind.name, ")")) {
           draw_value(name, data, kind.base, tags);
           imgui.tree_pop();
@@ -172,22 +175,68 @@ imgui_struct :: proc(name: string, value: any) {
         ptr := (cast(^rawptr)data)^;
         imgui.label_text(name, fmt.tprint(ptr));
 
+      case runtime.Type_Info_Rune:
+        new_data := cast(i32)(cast(^i32)data)^; imgui.drag_scalar(name, new_data); (cast(^i32)data)^ = new_data;
+
+      case runtime.Type_Info_Array:
+        if imgui.tree_node(fmt.tprint(name, " [", kind.count, "]", kind.elem)) {
+          for i in 0..kind.count-1 {
+            imgui.push_id(i);
+            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem, nil);
+            imgui.pop_id();
+          }
+
+          imgui.tree_pop();
+        }
+
+      case runtime.Type_Info_Slice:
+        slice := (cast(^mem.Raw_Slice)data)^;
+        if imgui.tree_node(fmt.tprint(name, " []", kind.elem)) {
+          for i in 0..slice.len-1 {
+            imgui.push_id(i);
+            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem, nil);
+            imgui.pop_id();
+          }
+
+          imgui.tree_pop();
+        }
+
+      case runtime.Type_Info_Dynamic_Array:
+        array := (cast(^mem.Raw_Dynamic_Array)data)^;
+        if imgui.tree_node(fmt.tprint(name, " [dynamic]", kind.elem)) {
+          for i in 0..array.len-1 {
+            imgui.push_id(i);
+            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem, nil);
+            imgui.pop_id();
+          }
+
+          // @Incomplete(naum): push/pop buttons (is it possible?)
+
+          imgui.tree_pop();
+        }
+
+        /*
+      case runtime.Type_Info_Enum:
+        if len(kind.values) > 0 {
+          ind : i32 = -1;
+          switch kind.values[0] {
+            case u8: 
+          }
+        }
+        */
+
       case: imgui.text(fmt.tprint("(unhandled type: ", kind));
+
       /*
-      case runtime.Type_Info_Rune:             unimplemented();
       case runtime.Type_Info_Complex:          unimplemented();
       case runtime.Type_Info_Quaternion:       unimplemented();
       case runtime.Type_Info_String:           unimplemented();
       case runtime.Type_Info_Any:              unimplemented();
       case runtime.Type_Info_Type_Id:          unimplemented();
       case runtime.Type_Info_Procedure:        unimplemented();
-      case runtime.Type_Info_Array:            unimplemented();
       case runtime.Type_Info_Enumerated_Array: unimplemented();
-      case runtime.Type_Info_Dynamic_Array:    unimplemented();
-      case runtime.Type_Info_Slice:            unimplemented();
       case runtime.Type_Info_Tuple:            unimplemented();
       case runtime.Type_Info_Union:            unimplemented();
-      case runtime.Type_Info_Enum:             unimplemented();
       case runtime.Type_Info_Map:              unimplemented();
       case runtime.Type_Info_Bit_Field:        unimplemented();
       case runtime.Type_Info_Bit_Set:          unimplemented();

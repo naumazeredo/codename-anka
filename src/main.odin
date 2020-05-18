@@ -85,12 +85,19 @@ test :: proc() {
   });
   */
 
+  append(&ts.v_dyn, 5);
   register_debug_program("test struct", proc(_: rawptr) {
     imgui_struct("test struct", ts);
   });
 }
 
 rot : f64 = 0.0;
+arr := [3]int { 4, 5, 6 };
+
+t_enum :: enum {
+  A = 1,
+  B = 1,
+}
 
 test_struct :: struct {
   v_int : int,
@@ -113,6 +120,10 @@ test_struct :: struct {
   v_ptr_nil : rawptr,
   v_rawptr  : rawptr,
   v_ptr     : ^f64,
+
+  v_array : [3]int,
+  v_slice : []int,
+  v_dyn   : [dynamic]int,
 }
 
 ts := test_struct {
@@ -136,7 +147,11 @@ ts := test_struct {
   v_ptr_nil = nil,
   v_rawptr  = cast(rawptr)&rot,
   v_ptr     = &rot,
+
+  v_array = { 10, 20, 40 },
+  v_slice = arr[1:],
 };
+
 
 // -----------
 //    /Test
