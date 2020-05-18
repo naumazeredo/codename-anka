@@ -6,6 +6,7 @@ import "core:math"
 import "core:math/linalg"
 import "core:strings"
 import "core:runtime"
+import "core:strconv"
 
 import "external/sdl"
 import "external/gl"
@@ -33,8 +34,8 @@ render_debug :: proc(render_system: ^Render_System, window: ^Window) {
 
   if !debug_window_open do return;
 
-  imgui.set_next_window_pos (imgui.Vec2 { f32(window.width - 300), 0 });
-  imgui.set_next_window_size(imgui.Vec2 { 300, f32(window.height) });
+  imgui.set_next_window_pos (imgui.Vec2 { f32(window.width - 400), 0 });
+  imgui.set_next_window_size(imgui.Vec2 { 400, f32(window.height) });
 
   imgui.begin(
     "Debug",
@@ -120,20 +121,34 @@ imgui_struct :: proc(name: string, value: $T) {
 // @Refactor(naum): remove name
 debug_add :: proc(name: string, value: any) {
   type_info := type_info_of(value.id);
-  draw_value(name, value.data, type_info, nil);
+  draw_value(name, value.data, type_info, {});
 
-  draw_value :: proc(name: string, data: rawptr, type_info: ^runtime.Type_Info, tags: map[string]any) {
-    // @Incomplete(naum): check if tags has non_serialize
+  draw_value :: proc(name: string, data: rawptr, type_info: ^runtime.Type_Info, tags: _Debug_Tags) {
     //fmt.println("data: ", data);
     //fmt.println("type_info: ", type_info);
+
+    if tags.no_draw do return;
+
+    if (tags.read_only) {
+      imgui.push_item_flag(imgui.Item_Flags.Disabled, true);
+      imgui.push_style_var(imgui.Style_Var.Alpha, imgui.get_style().alpha * 0.5);
+    }
+
+    speed : f32 = 1.0;
+    if tags.has_speed do speed = tags.speed;
+
+    min := -math.F32_MAX;
+    if tags.has_min do min = tags.min;
+
+    max := math.F32_MAX;
+    if tags.has_max do max = tags.max;
+
 
     #partial
     switch kind in type_info.variant {
       case runtime.Type_Info_Named:
         // @Refactor(naum): maybe change this to create header inside struct/array/etc
-        // @Incomplete(naum): print if it's a struct/enum/etc
-        //if imgui.tree_node(fmt.tprint(kind.name, " (", kind.base.id, ")")) {
-        if imgui.tree_node(kind.name) {
+        if imgui.tree_node(fmt.tprint(name, " (", kind.name, ")")) {
           draw_value(name, data, kind.base, tags);
           imgui.tree_pop();
         }
@@ -143,9 +158,10 @@ debug_add :: proc(name: string, value: any) {
         for name, ind in kind.names {
           type   := kind.types[ind];
           offset := kind.offsets[ind];
+          tags   := _parse_tags(kind.tags[ind]);
 
-          // @Incomplete(naum): add tags
-          draw_value(name, mem.ptr_offset(cast(^byte)data, cast(int)offset), type, nil);
+          // @incomplete(naum): add tags
+          draw_value(name, mem.ptr_offset(cast(^byte)data, cast(int)offset), type, tags);
         }
         imgui.unindent();
 
@@ -169,8 +185,8 @@ debug_add :: proc(name: string, value: any) {
 
       case runtime.Type_Info_Float:
         switch type_info.size {
-          case 8: new_data := cast(f64)(cast(^f64)data)^; imgui.drag_scalar(name, new_data); (cast(^f64)data)^ = cast(f64)new_data;
-          case 4: new_data := cast(f64)(cast(^f32)data)^; imgui.drag_scalar(name, new_data); (cast(^f32)data)^ = cast(f32)new_data;
+          case 8: new_data := cast(f64)(cast(^f64)data)^; imgui.drag_scalar(name, new_data, speed, min, max); (cast(^f64)data)^ = cast(f64)new_data;
+          case 4: new_data := cast(f64)(cast(^f32)data)^; imgui.drag_scalar(name, new_data, speed, min, max); (cast(^f32)data)^ = cast(f32)new_data;
         }
 
       case runtime.Type_Info_Boolean:
@@ -188,7 +204,7 @@ debug_add :: proc(name: string, value: any) {
         if imgui.tree_node(fmt.tprint(name, " [", kind.count, "]", kind.elem)) {
           for i in 0..kind.count-1 {
             imgui.push_id(i);
-            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem, nil);
+            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem, {});
             imgui.pop_id();
           }
 
@@ -200,7 +216,7 @@ debug_add :: proc(name: string, value: any) {
         if imgui.tree_node(fmt.tprint(name, " []", kind.elem)) {
           for i in 0..slice.len-1 {
             imgui.push_id(i);
-            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem, nil);
+            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem, {});
             imgui.pop_id();
           }
 
@@ -212,7 +228,7 @@ debug_add :: proc(name: string, value: any) {
         if imgui.tree_node(fmt.tprint(name, " [dynamic]", kind.elem)) {
           for i in 0..array.len-1 {
             imgui.push_id(i);
-            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem, nil);
+            draw_value(fmt.tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem, {});
             imgui.pop_id();
           }
 
@@ -249,6 +265,11 @@ debug_add :: proc(name: string, value: any) {
       case runtime.Type_Info_Opaque:           unimplemented();
       case runtime.Type_Info_Simd_Vector:      unimplemented();
       */
+    }
+
+    if (tags.read_only) {
+      imgui.pop_item_flag();
+      imgui.pop_style_var();
     }
   };
 }
@@ -590,3 +611,58 @@ _render :: proc() {
   gl.Viewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
   gl.Scissor (last_scissor[0],  last_scissor[1],  last_scissor[2],  last_scissor[3]);
 }
+
+_Debug_Tags :: struct {
+  no_draw  : bool,
+  read_only : bool,
+  has_speed : bool,
+  has_min  : bool,
+  has_max  : bool,
+
+  // @Fix(naum): doesn't represent all i64/u64
+  speed : f32,
+  min   : f64,
+  max   : f64,
+}
+
+_parse_tags :: proc(tags_str: string) -> _Debug_Tags {
+  tags : _Debug_Tags;
+  index : int;
+  ok : bool;
+
+  // no_draw
+  tags.no_draw = strings.contains(tags_str, "no_draw");
+
+  // disabled
+  tags.read_only = strings.contains(tags_str, "read_only");
+
+  // speed
+  index = strings.index(tags_str, "speed");
+  if index >= 0 {
+    tags.has_speed = true;
+
+    str := tags_str[index+6:]; // speed=
+    tags.speed, ok = strconv.parse_f32(str); assert(ok);
+  }
+
+  // min
+  index = strings.index(tags_str, "min");
+  if index >= 0 {
+    tags.has_min = true;
+
+    str := tags_str[index+4:]; // min=
+    tags.min, ok = strconv.parse_f64(str); assert(ok);
+  }
+
+  // max
+  index = strings.index(tags_str, "max");
+  if index >= 0 {
+    tags.has_max = true;
+
+    str := tags_str[index+4:]; // max=
+    tags.max, ok = strconv.parse_f64(str); assert(ok);
+  }
+
+  return tags;
+}
+

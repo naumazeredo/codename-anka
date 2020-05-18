@@ -171,11 +171,11 @@ push_style_color :: proc{push_style_color_, push_style_colorU32};
 @(default_calling_convention="c")
 foreign cimgui {
     @(link_name = "igPopStyleColor")                 pop_style_color                    :: proc (count : i32 = 1) ---;
-    @(link_name = "igPushStyleVar")                  push_style_var_                    :: proc (idx : Style_Var, val : f32) ---;
-    @(link_name = "igPushStyleVarVec")               push_style_var_vec                 :: proc (idx : Style_Var, val : Vec2) ---;
+    @(link_name = "igPushStyleVarFloat")             push_style_var_float               :: proc (idx : Style_Var, val : f32) ---;
+    @(link_name = "igPushStyleVarVec2")              push_style_var_vec2                :: proc (idx : Style_Var, val : Vec2) ---;
 }
 
-push_style_var :: proc{push_style_var_, push_style_var_vec};
+push_style_var :: proc{push_style_var_float, push_style_var_vec2};
 
 @(default_calling_convention="c")
 foreign cimgui {
@@ -264,6 +264,17 @@ push_id_str  :: proc(str_id : string) { push_id_cstr(_make_label_string(str_id))
 
 push_id :: proc{push_id_str, push_id_cstr_range, push_id_ptr, push_id_int, push_id_i32};
 get_id :: proc{get_id_str, get_id_str_range, get_id_ptr};
+
+/////// Widgets support
+
+push_item_flag :: proc(flag : Item_Flags, enabled : bool) { im_push_item_flag(flag, enabled); }
+pop_item_flag  :: proc()                                  { im_pop_item_flag(); }
+
+@(default_calling_convention="c")
+foreign cimgui {
+  @(link_name = "igPushItemFlag")    im_push_item_flag :: proc(flag: Item_Flags, enabled : bool) ---;
+  @(link_name = "igPopItemFlag")     im_pop_item_flag  :: proc() ---;
+}
 
 /////// Widgtes: Text
 text_unformatted :: proc (fmt_  : string)                                { im_text_unformatted(_make_text_string(fmt_)); }

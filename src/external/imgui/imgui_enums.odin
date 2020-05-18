@@ -452,3 +452,17 @@ Font_Atlas_Flags :: enum i32 {
     No_Power_Of_Two_Height = 1 << 0,
     No_Mouse_Cursors       = 1 << 1
 }
+
+//////// Widgets support
+
+Item_Flags :: enum i32 {
+  None                     = 0,
+  NoTabStop                = 1 << 0,
+  ButtonRepeat             = 1 << 1,
+  Disabled                 = 1 << 2,
+  NoNav                    = 1 << 3,
+  NoNavDefaultFocus        = 1 << 4,
+  SelectableDontClosePopup = 1 << 5,
+  MixedValue               = 1 << 6,
+  Default                  = 0,
+}

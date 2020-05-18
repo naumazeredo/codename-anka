@@ -5,16 +5,16 @@ import "external/sdl"
 time_system : Time_System = new_time_system();
 
 Time_System :: struct {
-  frame_count : u32,
+  frame_count : u32          `read_only`,
 
-  real_time : f64,
-  real_frame_duration : f64,
+  real_time : f64            `read_only`,
+  real_frame_duration : f64  `read_only`,
 
 
-  game_time : f64,
-  game_frame_duration : f64,
+  game_time : f64            `read_only`,
+  game_frame_duration : f64  `read_only`,
 
-  time_scale : f64
+  time_scale : f64           `min=0.0 max=16.0 speed=0.1`,
 }
 
 new_time_system :: proc() -> Time_System {
@@ -34,7 +34,7 @@ get_real_time :: proc() -> f64 {
   return f64(sdl.get_performance_counter()) / f64(sdl.get_performance_frequency());
 }
 
-cap_framerate :: proc(using time_system : ^Time_System) {
+_cap_framerate :: proc(using time_system : ^Time_System) {
   frame_duration := get_real_time() - real_time;
 
   if frame_duration < DESIRED_FRAME_DURATION {
@@ -45,8 +45,8 @@ cap_framerate :: proc(using time_system : ^Time_System) {
 
 new_frame :: proc(using time_system : ^Time_System) {
   frame_count += 1;
-  
-  cap_framerate(time_system);
+
+  _cap_framerate(time_system);
 
   real_frame_duration = get_real_time() - real_time;
   real_time += real_frame_duration;

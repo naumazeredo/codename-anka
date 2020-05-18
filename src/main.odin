@@ -90,8 +90,14 @@ test :: proc() {
     debug_add("test struct", ts);
   });
 
+  /*
   register_debug_program("animation", proc(_: rawptr) {
     debug_add("animation system", animation_system);
+  });
+  */
+
+  register_debug_program("time", proc(_: rawptr) {
+    debug_add("time system", time_system);
   });
 }
 

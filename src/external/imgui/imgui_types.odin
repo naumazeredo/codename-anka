@@ -52,7 +52,7 @@ ImVector :: struct(T : typeid) {
 
 
 Style :: struct {
-  alpha                     : f32,
+  alpha                     : f32 `min=0.1 max=1.0 speed=0.01`,
   window_padding            : Vec2,
   window_rounding           : f32,
   window_border_size        : f32,
