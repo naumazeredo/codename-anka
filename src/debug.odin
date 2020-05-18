@@ -18,7 +18,7 @@ init_debug :: proc(render_system: ^Render_System, window: ^Window) {
 
   register_debug_program("ImGUI style", proc(_: rawptr) {
     style := imgui.get_style();
-    imgui_struct("style", style^);
+    debug_add("style", style^);
   });
 }
 
@@ -114,7 +114,7 @@ imgui_struct :: proc(name: string, value: $T) {
 
 // @Future(naum): create ids for all elements using it's memory address (to light up same elements)
 // @Refactor(naum): remove name
-imgui_struct :: proc(name: string, value: any) {
+debug_add :: proc(name: string, value: any) {
   type_info := type_info_of(value.id);
   draw_value(name, value.data, type_info, nil);
 
@@ -127,7 +127,9 @@ imgui_struct :: proc(name: string, value: any) {
     switch kind in type_info.variant {
       case runtime.Type_Info_Named:
         // @Refactor(naum): maybe change this to create header inside struct/array/etc
-        if imgui.tree_node(fmt.tprint(name, " (", kind.name, ")")) {
+        // @Incomplete(naum): print if it's a struct/enum/etc
+        //if imgui.tree_node(fmt.tprint(kind.name, " (", kind.base.id, ")")) {
+        if imgui.tree_node(kind.name) {
           draw_value(name, data, kind.base, tags);
           imgui.tree_pop();
         }

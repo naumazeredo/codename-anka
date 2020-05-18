@@ -81,13 +81,13 @@ test :: proc() {
 
   /*
   register_debug_program("rotation", proc(_: rawptr) {
-    imgui_struct("rotation", rot);
+    debug_add("rotation", rot);
   });
   */
 
   append(&ts.v_dyn, 5);
   register_debug_program("test struct", proc(_: rawptr) {
-    imgui_struct("test struct", ts);
+    debug_add("test struct", ts);
   });
 }
 
