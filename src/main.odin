@@ -180,13 +180,13 @@ main :: proc() {
   for running {
     if !handle_input() do break;
 
-    render_add_draw_cmd(&render_system, 50, 50, 64, 64, tex, 1);
-    //render_add_draw_cmd(&render_system, player_pos.x, player_pos.y, 32, 32, tex, 0);
+    render_draw_quad(&render_system, 50, 50, 64, 64, tex, 1);
+    //render_draw_quad(&render_system, player_pos.x, player_pos.y, 32, 32, tex, 0);
 
-    render_add_texture(&render_system, 10, 10, tex, 0, f32(rot));
+    render_draw_texture(&render_system, 10, 10, tex, 0, f32(rot));
 
     uvs := [2]Vec2f { {0.0, 0.0}, {1.0, 1.0} };
-    render_add_sprite(&render_system, 10, 10, 32, 32, tex, 0, uvs);
+    render_draw_sprite(&render_system, 10, 10, 32, 32, tex, 0, uvs);
 
     resolve_collisions(&physics_system);
     render_animations(&animation_system);

@@ -129,7 +129,7 @@ _render_instance :: proc(using instance : ^Animation_Instance, render_system: ^R
   uvs[1].x = (current_width + model.frames_sizes[current_frame].x) / max_width;
   uvs[1].y = model.frames_sizes[current_frame].y / max_height;
 
-  render_add_sprite(render_system,
+  render_draw_sprite(render_system,
     pos.x,
     pos.y,
     model.frames_sizes[current_frame].x,

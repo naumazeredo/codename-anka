@@ -197,7 +197,7 @@ Draw_Sprite :: struct {
 
 // @Incomplete(naum): more shaders
 // @Incomplete(naum): add color
-render_add_draw_cmd :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
+render_draw_quad :: proc(using render_system: ^Render_System, x, y, w, h: f32, tex: Texture_Id, layer: i32, flip: Texture_Flip_Set = {}) {
   draw_cmd := Draw_Command {
     program = current_program,
     texture = tex,
@@ -214,7 +214,7 @@ render_add_draw_cmd :: proc(using render_system: ^Render_System, x, y, w, h: f32
 
 // @Incomplete(naum): more shaders
 // @Incomplete(naum): scale
-render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: Texture_Id, layer: i32, rot: f32 = 0, flip: Texture_Flip_Set = {}) {
+render_draw_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: Texture_Id, layer: i32, rot: f32 = 0, flip: Texture_Flip_Set = {}) {
   draw_cmd := Draw_Command {
     program = current_program,
     texture = tex,
@@ -231,7 +231,8 @@ render_add_texture :: proc(using render_system: ^Render_System, x, y: f32, tex: 
   append(&world_draw_cmds, draw_cmd);
 }
 
-render_add_sprite :: proc(using render_system: ^Render_System, x,y,w,h: f32, tex: Texture_Id, layer:i32, uvs: [2]Vec2f) {
+// @Incomplete(luciano): 
+render_draw_sprite :: proc(using render_system: ^Render_System, x,y,w,h: f32, tex: Texture_Id, layer:i32, uvs: [2]Vec2f) {
   draw_cmd := Draw_Command {
     program = current_program,
     texture = tex,

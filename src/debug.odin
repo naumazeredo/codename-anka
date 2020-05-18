@@ -82,6 +82,10 @@ handle_debug_input :: proc(event: ^sdl.Event) -> bool {
         debug_window_open = !debug_window_open;
         return true;
       }
+
+    case .Text_Input:
+      imgui.io_add_input_characters_utf8(io, &event.text.text[0]);
+      return true;
   }
 
   return false;
@@ -301,6 +305,7 @@ _init_imgui :: proc(render_system: ^Render_System, window: ^Window) {
   io.key_map[imgui.Key.Delete]        = i32(sdl.Scancode.Delete);
   io.key_map[imgui.Key.Backspace]     = i32(sdl.Scancode.Backspace);
   io.key_map[imgui.Key.Space]         = i32(sdl.Scancode.Space);
+  io.key_map[imgui.Key.Enter]         = i32(sdl.Scancode.Return);
   io.key_map[imgui.Key.Escape]        = i32(sdl.Scancode.Escape);
   io.key_map[imgui.Key.Key_Pad_Enter] = i32(sdl.Scancode.Kp_Enter);
   io.key_map[imgui.Key.A]             = i32(sdl.Scancode.A);
@@ -312,8 +317,8 @@ _init_imgui :: proc(render_system: ^Render_System, window: ^Window) {
 
   /*
   // @Incomplete(naum): IME configuration
-  wm_info : sdl.Sys_WM_Info;
-  sdl.get_version(&wm_info);
+  wm_info : sdl.Sys_Wm_Info;
+  sdl.get_version(&wm_info.version);
   sdl.get_window_wm_info(window, &wm_info);
   io.ime_window_handle = wm_info.info.win.window;
   */
