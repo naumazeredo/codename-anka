@@ -61,7 +61,7 @@ Render_System :: struct {
 
   draw_cmd_start     : [dynamic]u32,
   draw_cmd_count     : [dynamic]u32,
-  draw_cmd_translate : [dynamic]Vec2f,
+  draw_cmd_translate : [dynamic]Vec3f,
   draw_cmd_pivot     : [dynamic]Vec2f,
   draw_cmd_rotation  : [dynamic]f32,
 
@@ -249,16 +249,19 @@ render_draw_sprite :: proc(using render_system: ^Render_System, x,y,w,h: f32, te
 }
 
 // @Refactor(naum): gather by shader, texture (in this order)
-_render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Window) {
+_render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Window, camera: ^Camera) {
   x, y : f32;
   w, h : f32;
   rot  : f32;
 
   uvs : [4]Vec2f;
 
+  // @Refactor(naum): only update when camera move
+  construct_camera_matrixes(camera);
+
   for draw_cmd, id in world_draw_cmds {
     // @Refactor(naum): gather multiple cmds per draw call
-    _change_shader_program(render_system, draw_cmd.program);
+    _change_shader_program(render_system, draw_cmd.program, camera);
     _change_texture(render_system, draw_cmd.texture);
 
     fh := f32(.Horizontal in draw_cmd.flip ? 1.0 : 0.0);
@@ -305,10 +308,10 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
     append(&element_buffer, elem + 2); append(&element_buffer, elem + 3); append(&element_buffer, elem + 0);
 
     // vertex
-    append(&vertex_buffer, 0); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_cmd.layer));
-    append(&vertex_buffer, w); append(&vertex_buffer, 0); append(&vertex_buffer, f32(draw_cmd.layer));
-    append(&vertex_buffer, w); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_cmd.layer));
-    append(&vertex_buffer, 0); append(&vertex_buffer, h); append(&vertex_buffer, f32(draw_cmd.layer));
+    append(&vertex_buffer, 0); append(&vertex_buffer, 0); append(&vertex_buffer, 0);//f32(draw_cmd.layer));
+    append(&vertex_buffer, w); append(&vertex_buffer, 0); append(&vertex_buffer, 0);//f32(draw_cmd.layer));
+    append(&vertex_buffer, w); append(&vertex_buffer, h); append(&vertex_buffer, 0);//f32(draw_cmd.layer));
+    append(&vertex_buffer, 0); append(&vertex_buffer, h); append(&vertex_buffer, 0);//f32(draw_cmd.layer));
 
     // color
     append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1); append(&color_buffer, 1);
@@ -331,7 +334,7 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
     }
 
     append(&draw_cmd_count, 6);
-    append(&draw_cmd_translate, Vec2f { x, y });
+    append(&draw_cmd_translate, Vec3f { x, y, f32(draw_cmd.layer) });
     append(&draw_cmd_pivot, draw_cmd.pivot);
     append(&draw_cmd_rotation, rot);
 
@@ -343,11 +346,18 @@ _render_flush_draw_cmds :: proc(using render_system: ^Render_System, window: ^Wi
 }
 
 // @Incomplete(naum): add scale
-_calculate_matrix :: proc(translate: Vec2f, rotate: f32, pivot: Vec2f) -> linalg.Matrix4 {
+_calculate_matrix :: proc(translate: Vec3f, rotate: f32, pivot: Vec2f) -> linalg.Matrix4 {
+  /*
   mat := linalg.MATRIX4_IDENTITY;
   mat = linalg.mul(mat, linalg.matrix4_translate({ translate.x, translate.y, 0 }));
   mat = linalg.mul(mat, linalg.matrix4_rotate(rotate, { 0.0, 0.0, 1.0 }));
   mat = linalg.mul(mat, linalg.matrix4_translate({ -pivot.x, -pivot.y, 0 }));
+  */
+
+  mat := linalg.MATRIX4_IDENTITY;
+  mat = linalg.mul(mat, linalg.matrix4_translate(linalg.Vector3(translate)));
+  mat = linalg.mul(mat, linalg.matrix4_rotate(rotate, { 1.0, 0.0, 0.0 }));
+
   return mat;
 }
 
@@ -385,7 +395,7 @@ _change_texture :: proc(using render_system: ^Render_System, new_texture_id: Tex
   gl.BindTexture(gl.TEXTURE_2D, textures[current_texture_id]);
 }
 
-_change_shader_program :: proc(using render_system: ^Render_System, new_program: Program) {
+_change_shader_program :: proc(using render_system: ^Render_System, new_program: Program, camera: ^Camera) {
   current_program = new_program;
   gl.UseProgram(current_program);
 
@@ -397,8 +407,8 @@ _change_shader_program :: proc(using render_system: ^Render_System, new_program:
 
   gl.Uniform1i(texture_uniform, 0);
 
+  /*
   // @Refactor(naum): move to camera
-  // @Refactor(naum): learn why we need a view matrix
   // MVP matrixes
   view_mat := linalg.MATRIX4_IDENTITY;
 
@@ -407,6 +417,9 @@ _change_shader_program :: proc(using render_system: ^Render_System, new_program:
     f32(window.height), 0.0,
     -1000.0, 1000.0
   );
+  */
+  view_mat := camera.view_mat_cache;
+  proj_mat := camera.proj_mat_cache;
 
   gl.UniformMatrix4fv(view_mat_uniform, 1, 0, &view_mat[0][0]);
   gl.UniformMatrix4fv(proj_mat_uniform, 1, 0, &proj_mat[0][0]);
@@ -438,7 +451,7 @@ _create_buffer_data :: proc(using render_system: ^Render_System) {
                 gl.STREAM_DRAW);
 }
 
-render :: proc(using render_system: ^Render_System, window: ^Window) {
+render :: proc(using render_system: ^Render_System, window: ^Window, camera: ^Camera) {
   gl.ClearColor(0.0, 0.0, 0.0, 1.0);
   gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -478,7 +491,7 @@ render :: proc(using render_system: ^Render_System, window: ^Window) {
   gl.ActiveTexture(gl.TEXTURE0);
 
   //
-  _render_flush_draw_cmds(render_system, window);
+  _render_flush_draw_cmds(render_system, window, camera);
 
   render_debug(render_system, window);
 }

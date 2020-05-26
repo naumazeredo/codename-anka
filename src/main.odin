@@ -79,25 +79,27 @@ test :: proc() {
 
   add_player_collider(&physics_system, 32,32, &player_pos);
 
-  /*
   register_debug_program("rotation", proc(_: rawptr) {
     debug_add("rotation", rot);
   });
-  */
 
+  /*
   append(&ts.v_dyn, 5);
   register_debug_program("test struct", proc(_: rawptr) {
     debug_add("test struct", ts);
   });
 
-  /*
   register_debug_program("animation", proc(_: rawptr) {
     debug_add("animation system", animation_system);
   });
-  */
 
   register_debug_program("time", proc(_: rawptr) {
     debug_add("time system", time_system);
+  });
+  */
+
+  register_debug_program("Camera", proc(_: rawptr) {
+    debug_add("camera", camera);
   });
 }
 
@@ -163,6 +165,8 @@ ts := test_struct {
 };
 
 
+camera : Camera;
+
 // -----------
 //    /Test
 // -----------
@@ -182,26 +186,36 @@ main :: proc() {
 
   test();
 
+  //init_camera_ortho(&camera, { f32(window.width), f32(window.height) }, -1000, 1000);
+  init_camera_perspective(&camera, 45, f32(window.width) / f32(window.height), 0.1, 1000);
+  camera.position.z = -3.0;
+
+  /*
   model_id := add_animation_model(&animation_system, tex, 2, [dynamic]Vec2f{ {16,32}, {16,32} }, [dynamic]f32{1.0,2.0});
   add_animation_instance(&animation_system, model_id, &player_pos);
+  */
 
   new_frame(&time_system);
   running := true;
   for running {
     if !handle_input() do break;
 
-    render_draw_quad(&render_system, 50, 50, 64, 64, tex, 1);
+    /*
+    render_draw_quad(&render_system, 50, 50, 64, 64, tex, 101);
     //render_draw_quad(&render_system, player_pos.x, player_pos.y, 32, 32, tex, 0);
 
-    render_draw_texture(&render_system, 10, 10, tex, 0, f32(rot));
+    render_draw_texture(&render_system, 10, 10, tex, 100, f32(rot));
 
     uvs := [2]Vec2f { {0.0, 0.0}, {1.0, 1.0} };
-    render_draw_sprite(&render_system, 10, 10, 32, 32, tex, 0, uvs);
+    render_draw_sprite(&render_system, 10, 10, 32, 32, tex, 100, uvs);
+    */
 
-    resolve_collisions(&physics_system);
-    render_animations(&animation_system);
+    render_draw_texture(&render_system, 0, 0, tex, 100, f32(rot));
 
-    render(&render_system, &window);
+    //resolve_collisions(&physics_system);
+    //render_animations(&animation_system);
+
+    render(&render_system, &window, &camera);
     new_frame(&time_system);
   }
 }

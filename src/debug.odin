@@ -237,6 +237,17 @@ debug_add :: proc(name: string, value: any) {
           imgui.tree_pop();
         }
 
+      case runtime.Type_Info_Quaternion:
+        // @Refactor(naum): implement our quaternion?
+        // @Incorrect(naum): quaternions can have sizes 128 or 256, we need to check
+        a := (cast(^[4]f32)data)^;
+        debug_add("real", a[3]);
+        debug_add("imag", a[0]);
+        debug_add("jmag", a[1]);
+        debug_add("kmag", a[2]);
+        (cast(^[4]f32)data)^ = a;
+
+
         /*
       case runtime.Type_Info_Enum:
         if len(kind.values) > 0 {
