@@ -1,5 +1,4 @@
-#
+# Codename Anka
 
-## Future ideas
-
-- [ ] Change SDL_Image to stb_image
+A simple game entry for Ludum Dare 46.
+Engine made from scratch in 72h.
